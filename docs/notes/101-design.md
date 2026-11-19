@@ -95,7 +95,8 @@ One line per PR:
   full title on hover.
 - The **action**: a link whose text and click depend on the state (table
   below).
-- `↗` opens the PR on github.com.
+- `↗` opens the PR on github.com. So does a click anywhere else on the line
+  outside its links *(Sean, 2026-11-19)*.
 - Account: when more than one `gh` account is in use, a small tag shows
   which account authored the PR *(builder's call)*.
 

@@ -65,7 +65,18 @@ test('a row without an action has no action link', () => {
   const a = p.d.querySelector('.action');
   assert.strictEqual(a.textContent, 'checks 3/5');
   a.click();
-  assert.deepStrictEqual(p.posted, [{ type: 'ready' }]);
+  assert.deepStrictEqual(p.posted, [{ type: 'ready' }, { type: 'open', url: U(1) }], 'plain status text is part of the line: it opens the PR');
+});
+
+test('clicking the line, outside its links, opens the PR and selects the row', () => {
+  const p = page();
+  p.send(render({ rows: [row()] }));
+  const line = p.d.querySelector('.title').closest('.row');
+  p.d.querySelector('.title').click();
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'open', url: U(1) }]);
+  assert.ok(line.classList.contains('selected'));
+  p.d.querySelector('.action').click();
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'open', url: U(1) }, { type: 'action', url: U(1) }], 'a link does only its own thing');
 });
 
 test('Enter and o act on the selected row; arrows move', () => {

@@ -16,7 +16,7 @@ function shipped() {
 
 test('identity and engine', () => {
   assert.strictEqual(pkg.name, 'kestrel-prs');
-  assert.strictEqual(pkg.version, '0.1.3');
+  assert.strictEqual(pkg.version, '0.1.4');
   assert.strictEqual(pkg.publisher, 'seanahn');
   assert.strictEqual(pkg.engines.vscode, '^1.90.0');
   assert.strictEqual(pkg.main, './src/extension.js');

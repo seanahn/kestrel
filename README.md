@@ -12,7 +12,8 @@ agent's message box. It never sends it: you press Enter.
   GitHub account `gh` is signed in to. The tab's badge counts the rows you
   can act on right now.
 - **Rows:** a status dot, `owner/repo #number`, the title, an action link,
-  and `↗` to open the PR on github.com. With more than one account, a small
+  and `↗` to open the PR on github.com. Clicking anywhere else on the line
+  opens it too. With more than one account, a small
   tag shows which one authored the PR.
 - **Changes stand out:** when a PR's state changes, its row moves to the top
   and is highlighted for a few seconds.

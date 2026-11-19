@@ -52,7 +52,7 @@
       line.append(main);
       if (r.error) line.append(el('div', 'error', r.error));
       line.addEventListener('mouseenter', () => { if (!state.visible && r.highlight) post('seen', r.url); });
-      line.addEventListener('click', () => { selectedUrl = r.url; mark(); });
+      line.addEventListener('click', () => { selectedUrl = r.url; mark(); post('open', r.url); });   // links stop their clicks; the rest of the line opens the PR
       nodes.push(line);
     }
     const n = hiddenCount();
