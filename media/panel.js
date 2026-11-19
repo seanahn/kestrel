@@ -88,6 +88,8 @@
       const n = root.querySelector('.row.selected'); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
       e.preventDefault();
     } else if (i >= 0 && e.key === 'Enter') {
+      // A focused link button (↗, the extra link, ×) handles its own Enter as a click.
+      if (e.target && e.target.closest && e.target.closest('button')) return;
       const r = list[i];
       if (r.actionKind && !r.busy) post('action', r.url);
       e.preventDefault();

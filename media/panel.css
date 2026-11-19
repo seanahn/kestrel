@@ -12,6 +12,8 @@ body { padding: 0; margin: 0; font-family: var(--vscode-font-family); font-size:
 .dot.green { background: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
 .dot.gray { background: var(--vscode-descriptionForeground); }
 .dot.dim { background: var(--vscode-disabledForeground); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.dot.running { box-sizing: border-box; background: transparent; border: 2px solid var(--vscode-descriptionForeground); border-top-color: transparent; animation: spin 1s linear infinite; }
 .ref { flex: none; color: var(--vscode-descriptionForeground); }
 .title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .account { flex: none; font-size: 11px; padding: 0 6px; border-radius: 8px; color: var(--vscode-badge-foreground); background: var(--vscode-badge-background); }
@@ -21,7 +23,7 @@ body { padding: 0; margin: 0; font-family: var(--vscode-font-family); font-size:
 .link:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .row.selected .link { color: inherit; }
 .error { margin-left: 16px; font-size: 12px; color: var(--vscode-errorForeground); }
-@media (prefers-reduced-motion: reduce) { .row.fresh { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .row.fresh { animation: none; } .dot.running { animation: none; border-top-color: var(--vscode-descriptionForeground); } }
 .row.hidden { opacity: 0.55; }
 .row .hide { flex: none; visibility: hidden; color: var(--vscode-descriptionForeground); }
 .row:hover .hide, .row.selected .hide, .row .hide:focus-visible { visibility: visible; }

@@ -73,7 +73,9 @@ A webview rather than a tree, because a row needs two links, a highlight
 fade, and colored status *(builder's call, same reasoning as chirp's
 sidebar)*. It follows the VS Code theme's CSS variables and works from the
 keyboard: ↑/↓ move between rows, Enter activates the row's action, `o`
-opens the PR in the browser *(builder's call)*.
+opens the PR in the browser *(builder's call)*. When one of a row's links
+has keyboard focus, Enter clicks that link instead *(ruling during build,
+2026-11-19)*.
 
 Toolbar: Refresh. That's all for now.
 
@@ -132,8 +134,11 @@ the row:
 
 - moves to the top (rows are sorted by when their state last changed,
   newest first; on first load, by PR updated time);
-- is highlighted with an accent background that fades over about 4 s,
-  or stays marked until hovered while the panel was hidden *(builder's call)*;
+- is highlighted with an accent background that fades over about 4 s
+  *(builder's call)*. A change that happened while the panel was hidden
+  fades the same way, 4 s after the panel is shown: the page doesn't exist
+  while hidden, so it can't wait for a hover. The badge still counts it
+  *(ruling during build, 2026-11-19; was "stays marked until hovered")*;
 - and if the new state is one Sean can act on, the badge count goes up.
   A change into draft, running, or waiting-on-others still moves the row,
   but without the highlight *(builder's call)*.
@@ -431,8 +436,9 @@ All *(builder's call)* unless noted.
 - **The extra link** (findings or unresolved comments) shows on every row
   except draft, blockers and running.
 - **Highlight.** A highlighted row is marked seen 4 s after it is drawn
-  while the panel is visible, or on hover if it arrived while the panel
-  was hidden.
+  while the panel is visible, including rows that changed while it was
+  hidden *(ruling during build, 2026-11-19; the hover rule is dropped, see
+  "Events")*.
 - **No `gh`, or no accounts:** the note shows and kestrel retries every
   30 s.
 - **No allowed merge method:** the row shows "This repo allows no merge

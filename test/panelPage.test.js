@@ -207,3 +207,33 @@ test('empty state with all hidden', () => {
   p.d.querySelector('.toggle-hidden').click();
   assert.strictEqual(p.d.querySelector('.empty'), null);
 });
+
+test('Enter on a focused link button is left to the button, not the selected row', () => {
+  const p = page();
+  p.send(render({ rows: [row({ url: U(1), extraText: '2 findings' })] }));
+  p.key('ArrowDown');
+  for (const cls of ['.open', '.extra', '.hide']) {
+    const b = p.d.querySelector(cls);
+    b.focus();
+    const e = new p.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    b.dispatchEvent(e);
+    assert.strictEqual(e.defaultPrevented, false, `${cls}: the button's own click still happens`);
+  }
+  assert.deepStrictEqual(p.posted.slice(1), [], 'no row action from Enter on a button');
+  p.key('Enter');
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'action', url: U(1) }], 'Enter elsewhere still acts');
+});
+
+test('running rows get a spinner dot, a static ring with reduced motion', () => {
+  const p = page();
+  p.send(render({ rows: [row({ dot: 'running', actionKind: null, text: 'checks 3/5' })] }));
+  assert.ok(p.d.querySelector('.dot').classList.contains('running'));
+  const rule = /\.dot\.running\s*\{([^}]*)\}/.exec(CSS);
+  assert.ok(rule, 'a .dot.running rule');
+  assert.match(rule[1], /animation:\s*[\w-]+\s[^;]*infinite/);
+  assert.match(rule[1], /border[^;]*var\(--vscode-/);
+  const name = /animation:\s*([\w-]+)/.exec(rule[1])[1];
+  assert.match(CSS, new RegExp(`@keyframes ${name}\\s*\\{[^}]*rotate`));
+  const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\}\s*\}/.exec(CSS);
+  assert.ok(reduced && /\.dot\.running\s*\{[^}]*animation:\s*none/.test(reduced[1] + '}'), 'reduced motion stops the spin');
+});
