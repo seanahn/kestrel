@@ -93,12 +93,12 @@ test('action on an open row opens the PR', () => {
 });
 
 test('extra hands off the extra prompt; open opens; seen marks seen', () => {
-  const { view, sent, ui, tracker } = setup([pr(1, { reviews: [] })]);
+  const { view, sent, ui, tracker, last } = setup([pr(1, { unresolvedThreads: 2 })]);
   const row = tracker.rows()[0];
-  if (row.state.extra) {
-    view.webview._receive({ type: 'extra', url: U(1) });
-    assert.deepStrictEqual(sent, [row.state.extra.prompt]);
-  }
+  assert.strictEqual(last().rows[0].extraText, '2 unresolved comments');
+  view.webview._receive({ type: 'extra', url: U(1) });
+  assert.deepStrictEqual(sent, [row.state.extra.prompt]);
+  assert.strictEqual(sent[0], `check the unresolved review comments on PR acme/widgets#1 (${U(1)})`);
   view.webview._receive({ type: 'open', url: U(1) });
   assert.deepStrictEqual(ui.opened, [U(1)]);
   tracker.apply('octo-dev', [pr(1)]);
