@@ -132,7 +132,13 @@ A cheap list query runs each poll (about 1 point per account, of GitHub's
 still running. When throttled, rate limited or offline, rows stay as last
 seen with a note at the top. Each VS Code window polls on its own.
 
-## Install from source
+## Install
+
+From the Marketplace: search for **kestrel PRs** by seanahn, or run
+`code --install-extension seanahn.kestrel-prs`. The Marketplace name is
+`kestrel-prs` ("kestrel PRs") because `kestrel` was taken.
+
+### From source
 
 ```
 make install     # links this checkout into VS Code / code-server; reload the window

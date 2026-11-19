@@ -15,8 +15,8 @@ export VSCE_PAT
 VSCE = npx --yes @vscode/vsce
 VERSION = $(shell node -p "require('./package.json').version")
 PUBLISHER = $(shell node -p "require('./package.json').publisher")
-VSIX = kestrel-$(VERSION).vsix
-EXT_ID = seanahn.kestrel-$(VERSION)
+VSIX = kestrel-prs-$(VERSION).vsix
+EXT_ID = seanahn.kestrel-prs-$(VERSION)
 EXT_DIRS = $(HOME)/.vscode/extensions $(HOME)/.local/share/code-server/extensions $(HOME)/.vscode-server/extensions
 
 ## Install the development dependencies (jsdom, for the page tests)
