@@ -77,7 +77,10 @@ function install() {
   ui.setConfig = (key, value) => { ui.config[key] = value; configChange.fire({ affectsConfiguration: (sec) => key === sec || key.startsWith(sec + '.') }); };
   /** Shows a view: resolves the registered view provider (default kestrel.prs) with a fake view. */
   ui.resolveView = (id = 'kestrel.prs') => {
-    const view = { webview: fakeWebview(), badge: undefined, visible: true, show() {}, onDidChangeVisibility: () => ({ dispose() {} }), onDidDispose: () => ({ dispose() {} }) };
+    const visibility = new Emitter();
+    const view = { webview: fakeWebview(), badge: undefined, visible: true, show() {}, onDidChangeVisibility: visibility.event, onDidDispose: () => ({ dispose() {} }),
+      /** Tests: hide or show the view and fire onDidChangeVisibility. */
+      _setVisible(v) { this.visible = v; visibility.fire(); } };
     ui.providers[id].resolveWebviewView(view, {}, {});
     ui.view = view;
     return view;
