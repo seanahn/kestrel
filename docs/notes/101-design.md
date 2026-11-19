@@ -324,8 +324,11 @@ summaries"), not as anything specific to one reviewer.
 - A branch rule closes that gap too, if it requires at least one approval,
   the bot's approval counts toward it, and stale approvals are dismissed
   on push. Until the bot approves the new head, GitHub reports the PR
-  `BLOCKED`, so the row shows state 8, not **merge**. Sean's repos are set
-  up this way, and their reviewer also runs as a check (2026-11-19).
+  `BLOCKED`, so the row shows state 8, not **merge**. Correction
+  (2026-11-19): Sean's repo requires one approval, but its branch rule does
+  **not** dismiss stale approvals. What keeps **merge** from showing early
+  there is the first point above: its reviewer runs as a check on every
+  push.
 - `blockers.length` and `findings.length` give the counts. The entries'
   contents are not shown.
 - A marker that fails to decode is ignored, as if absent.
