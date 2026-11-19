@@ -361,6 +361,10 @@ When Sean clicks a reason, kestrel:
   in, which is the right target, because clicking in kestrel's panel takes
   focus away from perch. If there is none, it returns `false`. Otherwise it calls the existing `deliver(sid, text)`,
   reveals and focuses that tab, and returns `true`.
+- The text goes at the **end** of the box, after a space when the draft
+  doesn't end in whitespace, never at the caret and never over a
+  selection, so it replaces nothing already typed. Dictation and file
+  mentions still insert at the caret *(ruling during build, 2026-11-19)*.
 - No other perch behavior changes.
 
 ## Merging
@@ -443,8 +447,8 @@ All *(builder's call)* unless noted.
   30 s.
 - **No allowed merge method:** the row shows "This repo allows no merge
   method kestrel can use".
-- **`perch.insertText`** adds a leading space when the waiting draft
-  doesn't end in whitespace. It reveals the tab and returns `true`, or
+- **`perch.insertText`** appends at the end of the box, adding a leading
+  space when the waiting draft doesn't end in whitespace. It reveals the tab and returns `true`, or
   returns `false` when there is no perch tab.
 
 ## Diagrams
