@@ -215,9 +215,10 @@ use *(builder's call)*:
   the last poll, or whose rollup is still `PENDING`/`EXPECTED`. It fetches
   them by node id (`nodes(ids:)`) and asks for the fields below.
 
-So a quiet list of 30 PRs costs about one point a poll. The builder
-should measure the real cost with `rateLimit { cost }` and record it in
-the build note.
+So a quiet list of 30 PRs costs about one point a poll. Measured on
+2026-11-19 with `rateLimit { cost }` (see [201](201-build.md)): the list
+query costs 1 point per account per poll, and a detail query for 3 PRs
+costs 2.
 
 Both go to `https://api.github.com/graphql` with that account's token, called directly from Node (`https` module, no
 dependency) rather than shelling out to `gh` each time *(builder's call)*:
@@ -415,7 +416,7 @@ Same structure as chirp (`/git/chirp`), so Sean can work on both the same way:
   uninstall package install-vsix login publish clean`).
 - `docs/notes/`: this note (101), and later notes in the same numbering
   as chirp (201+ build records, 901 setup).
-- README for the marketplace, written without any employer mention.
+- [`README.md`](../../README.md) for the marketplace, written without any employer mention.
 
 The model is the part worth testing hardest. The state table above should
 become a table-driven test, with one fixture PR per row plus the rule-order
