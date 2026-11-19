@@ -47,6 +47,7 @@ function activate(context, deps = {}) {
     preferred: () => cfg().get('mergeMethod', 'squash'),
     onBusyChange: () => panel.render(),
     onMerged: (url) => sync.unwatch(url),
+    onUpdated: () => sync.fast(),
   });
   panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger });
 

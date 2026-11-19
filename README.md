@@ -38,7 +38,7 @@ The first line that matches decides the row.
 | N blockers | The review bot's summary for the latest commit lists blockers | prompt: check the blocker comments |
 | changes requested | A reviewer requested changes | prompt: check the requested changes |
 | checks done/total | Checks are still running, or GitHub is still working out mergeability | nothing |
-| behind base | The branch must be up to date with its base and isn't | prompt: update it |
+| behind base | The branch must be up to date with its base and isn't | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
 | blocked: reason | Blocked for another reason, such as a missing required review | opens the PR |
 | **merge** | GitHub would accept the merge | merges, after a confirm |
 
@@ -49,6 +49,17 @@ puts a prompt about them in the agent's box.
 
 The badge counts conflicts, failed CI, blockers, changes requested, behind
 base and mergeable. Drafts, running and blocked-on-someone-else don't count.
+
+## Updating a branch
+
+Clicking **behind base** merges the base branch into the PR branch on
+GitHub, the same as its **Update branch** button. There's no confirm. The
+link reads "updating…" meanwhile. GitHub refuses if a push landed after the
+row was drawn. The update is a push, so CI and reviewers run again. If
+GitHub refuses (a conflict, say), its message shows on the row, and the
+link becomes **behind base: ask agent**, which hands the agent a prompt to
+update the branch locally. Your local checkout is now behind the PR
+branch, so pull before you push again.
 
 ## Merging
 

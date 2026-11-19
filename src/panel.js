@@ -47,6 +47,10 @@ class PanelProvider {
       if (!a) return;
       if (a.kind === 'prompt') this.handoff.send(a.prompt);
       else if (a.kind === 'merge') this.merger.merge(row.pr.url);
+      else if (a.kind === 'update') {
+        if (this.merger.updateFailed(row.pr.url)) this.handoff.send(a.prompt);
+        else this.merger.update(row.pr.url);
+      }
       else if (a.kind === 'open') this.open(row.pr.url);
     } else if (m.type === 'extra') {
       if (state.extra) this.handoff.send(state.extra.prompt);
@@ -72,21 +76,28 @@ class PanelProvider {
       visible: !!view.visible,
       notes: this.tracker.notes(),
       multiAccount: accounts.size > 1,
-      rows: rows.map((r) => ({
-        url: r.pr.url,
-        ref: `${r.pr.repo}#${r.pr.number}`,
-        title: r.pr.title,
-        account: r.pr.account,
-        text: r.state.text,
-        dot: r.state.dot,
-        actionKind: r.state.action ? r.state.action.kind : null,
-        extraText: r.state.extra ? r.state.extra.text : null,
-        highlight: !!r.highlight,
-        busy: !!this.merger.busy(r.pr.url),
-        error: r.error || null,
-        hidden: !!r.hidden,
-      })),
+      rows: rows.map((r) => this.renderRow(r)),
     });
+  }
+
+  renderRow(r) {
+    const busyKind = this.merger.busyKind ? this.merger.busyKind(r.pr.url) : null;
+    const handBack = r.state.action && r.state.action.kind === 'update' && this.merger.updateFailed(r.pr.url);
+    return {
+      url: r.pr.url,
+      ref: `${r.pr.repo}#${r.pr.number}`,
+      title: r.pr.title,
+      account: r.pr.account,
+      text: handBack ? 'behind base: ask agent' : r.state.text,
+      dot: r.state.dot,
+      actionKind: handBack ? 'prompt' : r.state.action ? r.state.action.kind : null,
+      extraText: r.state.extra ? r.state.extra.text : null,
+      highlight: !!r.highlight,
+      busy: !!this.merger.busy(r.pr.url),
+      busyText: busyKind === 'update' ? 'updating…' : busyKind ? 'merging…' : null,
+      error: r.error || null,
+      hidden: !!r.hidden,
+    };
   }
 }
 

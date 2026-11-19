@@ -1,5 +1,5 @@
 'use strict';
-// GitHub GraphQL client (design 101, "The query" and "Polling"): the list query, the detail query, merge, and
+// GitHub GraphQL client (design 101, "The query" and "Polling"): the list query, the detail query, merge, branch update, and
 // error mapping (a primary rate limit is kind 'rate', which the poller waits out). Every HTTP call goes through one
 // injectable request(token, body).
 const https = require('node:https');
@@ -51,6 +51,10 @@ const URL_QUERY = `query($url: URI!) {
 
 const MERGE_QUERY = `mutation($input: MergePullRequestInput!) {
   mergePullRequest(input: $input) { pullRequest { id } }
+}`;
+
+const UPDATE_QUERY = `mutation($input: UpdatePullRequestBranchInput!) {
+  updatePullRequestBranch(input: $input) { pullRequest { id } }
 }`;
 
 class GitHubError extends Error {
@@ -234,6 +238,12 @@ function createClient({ request = defaultRequest, now = Date.now } = {}) {
     async merge(token, { id, method, expectedHeadOid }) {
       const input = { pullRequestId: id, mergeMethod: method, expectedHeadOid };
       await send(token, { query: MERGE_QUERY, variables: { input } }, 'refused');
+    },
+
+    /** GitHub's "Update branch": merge the base into the PR branch, refused if the head moved past expectedHeadOid. */
+    async updateBranch(token, { id, expectedHeadOid }) {
+      const input = { pullRequestId: id, expectedHeadOid, updateMethod: 'MERGE' };
+      await send(token, { query: UPDATE_QUERY, variables: { input } }, 'refused');
     },
   };
 }

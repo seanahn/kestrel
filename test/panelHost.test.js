@@ -19,15 +19,19 @@ function setup(prs) {
   const { PanelProvider } = require('../src/panel');
   const tracker = createTracker({ now: () => Date.parse('2026-03-01T00:00:00Z') });
   tracker.apply('octo-dev', prs);
-  const sent = [], merged = []; const busySet = new Set();
+  const sent = [], merged = [], updated = []; const busySet = new Set(), failedSet = new Set(); const kinds = new Map();
   const handoff = { send: async (p) => { sent.push(p); } };
-  const merger = { merge: async (u) => { merged.push(u); }, busy: (u) => busySet.has(u) };
+  const merger = {
+    merge: async (u) => { merged.push(u); }, update: async (u) => { updated.push(u); },
+    busy: (u) => busySet.has(u), busyKind: (u) => (busySet.has(u) ? kinds.get(u) || 'merge' : null),
+    updateFailed: (u) => failedSet.has(u),
+  };
   const panel = new PanelProvider({ vscode, extensionUri: vscode.Uri.file('/ext'), tracker, handoff, merger });
   ui.providers['kestrel.prs'] = panel;
   const view = ui.resolveView();
   view.webview._receive({ type: 'ready' });
   const last = () => view.webview.posted[view.webview.posted.length - 1];
-  return { ui, tracker, view, sent, merged, busySet, panel, last };
+  return { ui, tracker, view, sent, merged, updated, busySet, failedSet, kinds, panel, last };
 }
 const U = (n) => `https://github.com/acme/widgets/pull/${n}`;
 
@@ -48,7 +52,7 @@ test('ready posts render with rows, in tracker order, and no prompt text', () =>
   assert.deepStrictEqual(m.notes, []);
   assert.strictEqual(m.rows.length, 2);
   const r = m.rows.find((x) => x.url === U(1));
-  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'dot', 'error', 'extraText', 'hidden', 'highlight', 'ref', 'text', 'title', 'url'].sort());
+  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'busyText', 'dot', 'error', 'extraText', 'hidden', 'highlight', 'ref', 'text', 'title', 'url'].sort());
   assert.strictEqual(r.ref, 'acme/widgets#1');
   assert.strictEqual(r.actionKind, 'prompt');
   assert.strictEqual(r.text, 'conflicts');
@@ -157,4 +161,32 @@ test('hide and unhide messages call the tracker; rows carry hidden', () => {
   view.webview._receive({ type: 'unhide', url: U(1) });
   assert.deepStrictEqual(tracker.hiddenUrls(), []);
   assert.strictEqual(last().rows.find((x) => x.url === U(1)).hidden, false);
+});
+
+test('behind base updates in place; after a refusal it hands the agent the prompt', () => {
+  const { view, updated, sent, failedSet, panel, last } = setup([pr(1, { mergeState: 'BEHIND' })]);
+  const r = last().rows[0];
+  assert.strictEqual(r.actionKind, 'update');
+  assert.strictEqual(r.text, 'behind base');
+  view.webview._receive({ type: 'action', url: U(1) });
+  assert.deepStrictEqual(updated, [U(1)]);
+  assert.deepStrictEqual(sent, []);
+  failedSet.add(U(1));
+  panel.render();
+  const f = last().rows[0];
+  assert.strictEqual(f.actionKind, 'prompt');
+  assert.strictEqual(f.text, 'behind base: ask agent');
+  view.webview._receive({ type: 'action', url: U(1) });
+  assert.deepStrictEqual(updated, [U(1)]);
+  assert.deepStrictEqual(sent, ['update PR acme/widgets#1 with its base branch (https://github.com/acme/widgets/pull/1)']);
+});
+
+test('busy text names what is in flight', () => {
+  const { busySet, kinds, panel, last } = setup([pr(1, { mergeState: 'BEHIND' }), pr(2)]);
+  assert.strictEqual(last().rows[0].busyText, null);
+  busySet.add(U(1)); kinds.set(U(1), 'update'); busySet.add(U(2));
+  panel.render();
+  const by = (n) => last().rows.find((x) => x.url === U(n));
+  assert.strictEqual(by(1).busyText, 'updating…');
+  assert.strictEqual(by(2).busyText, 'merging…');
 });

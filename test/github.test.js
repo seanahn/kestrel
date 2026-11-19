@@ -152,6 +152,19 @@ test('merge sends mergePullRequest and maps errors to refused', async () => {
   await assert.rejects(createClient({ request: h.request }).merge('tok', { id: 'PR_7', method: 'MERGE', expectedHeadOid: 'x' }), kindOf('auth'));
 });
 
+test('updateBranch merges the base in, guarded by the head commit; errors map to refused', async () => {
+  const f = fake(ok({ data: { updatePullRequestBranch: { pullRequest: { id: 'PR_7' } } } }));
+  const c = createClient({ request: f.request });
+  assert.strictEqual(await c.updateBranch('tok', { id: 'PR_7', expectedHeadOid: 'head7' }), undefined);
+  assert.match(f.calls[0].body.query, /updatePullRequestBranch/);
+  assert.deepStrictEqual(f.calls[0].body.variables.input, { pullRequestId: 'PR_7', expectedHeadOid: 'head7', updateMethod: 'MERGE' });
+  const g = fake(ok({ data: null, errors: [{ message: 'merge conflict between base and head' }] }));
+  await assert.rejects(createClient({ request: g.request }).updateBranch('tok', { id: 'PR_7', expectedHeadOid: 'x' }),
+    (e) => kindOf('refused')(e) && e.message === 'merge conflict between base and head');
+  await assert.rejects(createClient({ request: () => Promise.resolve({ status: 200, headers: {}, json: null }) }).updateBranch('tok', { id: 'PR_7' }),
+    (e) => e instanceof GitHubError);
+});
+
 test('a 2xx without JSON data is an http error, never an empty success', async () => {
   const bad = [ok(null), ok({ data: null }), ok({})];
   for (const r of bad) {

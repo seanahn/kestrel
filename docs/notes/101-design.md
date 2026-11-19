@@ -112,7 +112,7 @@ the PR's latest commit.
 | 4 | Review bot summary on head has blockers | "{n} blocker(s)" | prompt: "check the blocker comments on PR {ref} ({url})" |
 | 5 | A human reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`) | "changes requested" | prompt: "check the requested changes on PR {ref} ({url})" |
 | 6 | Checks still pending or queued on head, or GitHub hasn't computed mergeability yet (`UNKNOWN`) | "checks {done}/{total}" spinner | nothing |
-| 7 | Branch behind base and the repo requires it up to date (`mergeStateStatus: BEHIND`) | "behind base" | prompt: "update PR {ref} with its base branch ({url})" |
+| 7 | Branch behind base and the repo requires it up to date (`mergeStateStatus: BEHIND`) | "behind base" | updates the branch in place (see "Updating a branch"); after GitHub refuses, prompt: "update PR {ref} with its base branch ({url})" |
 | 8 | Blocked for another reason (`BLOCKED`, e.g. required review missing) | "blocked: needs review" or the reason GitHub gives | opens the PR in the browser |
 | 9 | Mergeable (`CLEAN`, or `UNSTABLE`/`HAS_HOOKS` with no failures by rule 3) | **merge**, plus "{n} findings" when the review bot found non-blocking findings | merge (see "Merging"); the findings text is a second link with prompt "check the findings on PR {ref} ({url})" |
 
@@ -399,6 +399,32 @@ Clicking **merge**:
 7. The merge uses the token of the account the row came from. A second
    click while a merge is in flight does nothing (the link shows
    "merging…"). Cancelling the confirm does nothing.
+
+## Updating a branch (added 2026-11-19, Sean's request)
+
+Clicking "behind base" does what GitHub's **Update branch** button does,
+in place, instead of handing the agent a prompt:
+
+1. No confirm: it changes the PR branch and merges nothing.
+2. GraphQL `updatePullRequestBranch(pullRequestId, expectedHeadOid:
+   headRefOid, updateMethod: MERGE)`. This merges the base into the PR
+   branch with a merge commit (Sean's choice over rebase). `expectedHeadOid`
+   makes GitHub refuse if a push landed after the row was drawn.
+3. While it runs, the link reads "updating…". Further clicks, and merge,
+   wait for it.
+4. On success, kestrel polls at once and switches to the 10 s interval.
+   The update is a new push, so CI and the reviewer run again, and the row
+   moves through "checks n/m".
+5. On a refusal, such as a conflict, GitHub's message shows in red. The
+   link becomes "behind base: ask agent", which puts the prompt "update PR
+   {ref} with its base branch ({url})" in the agent's box. A new head commit
+   gets a fresh in-place try.
+6. On an error whose outcome is unknown (network, 401): "Update not
+   confirmed: …", a poll, and no retry.
+7. The update uses the token of the account the row came from.
+
+A side effect worth knowing: the branch on GitHub moves ahead of any local
+checkout, so the next local push needs a pull first.
 
 ## How it is built
 

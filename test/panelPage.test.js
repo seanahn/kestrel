@@ -16,7 +16,7 @@ function page() {
   const key = (k) => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
   return { w, d: w.document, posted, send, key };
 }
-const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null, hidden: false }, o);
+const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null, hidden: false, busyText: null }, o);
 const render = (o) => Object.assign({ type: 'render', visible: true, notes: [], multiAccount: false, rows: [] }, o);
 const U = (n) => `https://github.com/acme/widgets/pull/${n}`;
 
@@ -125,6 +125,12 @@ test('busy shows merging…', () => {
   const p = page();
   p.send(render({ rows: [row({ busy: true })] }));
   assert.strictEqual(p.d.querySelector('.action').textContent, 'merging…');
+});
+
+test('busy shows the host busy text', () => {
+  const p = page();
+  p.send(render({ rows: [row({ busy: true, busyText: 'updating…', actionKind: 'update', text: 'behind base' })] }));
+  assert.strictEqual(p.d.querySelector('.action').textContent, 'updating…');
 });
 
 test('errors show under the row text', () => {

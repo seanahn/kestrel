@@ -43,7 +43,7 @@
       main.append(el('span', 'dot ' + r.dot), el('span', 'ref', r.ref), el('span', 'title', r.title));
       main.lastChild.setAttribute('title', r.title);
       if (state.multiAccount) main.append(el('span', 'account', r.account));
-      const label = r.busy ? 'merging…' : r.text;
+      const label = r.busy ? r.busyText || 'merging…' : r.text;
       main.append(r.actionKind && !r.busy ? link('action', label, () => post('action', r.url)) : el('span', 'action', label));
       if (r.extraText) main.append(link('extra', r.extraText, () => post('extra', r.url)));
       main.append(link('open', '↗', () => post('open', r.url)));

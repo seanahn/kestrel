@@ -51,7 +51,7 @@ function rowState(pr) {
     return out(6, '6', checks.length ? `checks ${done}/${checks.length}` : 'waiting for GitHub', 'running', null, false);
   }
   if (pr.mergeState === 'BEHIND') {
-    return out(7, '7', 'behind base', 'red', ask(`update PR ${ref} with its base branch (${pr.url})`));
+    return out(7, '7', 'behind base', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${pr.url})` });
   }
   if (!['CLEAN', 'UNSTABLE', 'HAS_HOOKS'].includes(pr.mergeState)) {
     return out(8, '8', pr.reviewDecision === 'REVIEW_REQUIRED' ? 'blocked: needs review' : 'blocked', 'dim', { kind: 'open' });

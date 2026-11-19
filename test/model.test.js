@@ -33,7 +33,7 @@ test('state table', () => {
     [6, pr({ checks: [{ name: 'a', state: 'success' }, { name: 'b', state: 'pending' }, { name: 'c', state: 'pending' }] }), 'checks 1/3', 'running', null],
     [6, pr({ mergeable: 'UNKNOWN', checks: [] }), 'waiting for GitHub', 'running', null],
     [6, pr({ mergeState: 'UNKNOWN' }), 'checks 1/1', 'running', null],
-    [7, pr({ mergeState: 'BEHIND' }), 'behind base', 'red', prompt(`update PR ${ref} with its base branch (${url})`)],
+    [7, pr({ mergeState: 'BEHIND' }), 'behind base', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${url})` }],
     [8, pr({ mergeState: 'BLOCKED' }), 'blocked', 'dim', { kind: 'open' }],
     [8, pr({ mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' }), 'blocked: needs review', 'dim', { kind: 'open' }],
     [8, pr({ mergeState: 'DIRTY' }), 'blocked', 'dim', { kind: 'open' }],
