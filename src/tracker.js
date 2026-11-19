@@ -7,7 +7,8 @@ function createTracker({ now }) {
   const rows = new Map();       // pr.url -> Row
   const applied = new Set();    // accounts that have had a successful apply
   const notes = new Map();      // account -> note, in insertion order
-  let globalNote = null;
+  let globalNote = null;       // sync's own note (no gh)
+  let pollNote = null;         // the poller's note (throttled, offline, rate limit)
   const listeners = [];
   const hidden = new Set();     // urls the user hid (design 101, "Hiding a PR")
   const hiddenListeners = [];
@@ -72,6 +73,13 @@ function createTracker({ now }) {
     emit(true);
   }
 
+  function setPollNote(text) {
+    const next = text || null;
+    if (next === pollNote) return;
+    pollNote = next;
+    emit(true);
+  }
+
   function remove(url) {
     const had = rows.delete(url);
     const pruned = hidden.delete(url);
@@ -112,10 +120,10 @@ function createTracker({ now }) {
   }
 
   return {
-    apply, fail, drop, clearNote, setGlobalNote, remove, markSeen, setError, setHidden, hide, unhide,
+    apply, fail, drop, clearNote, setGlobalNote, setPollNote, remove, markSeen, setError, setHidden, hide, unhide,
     rows: () => [...rows.values()].map((r) => ({ ...r, hidden: hidden.has(r.pr.url) })).sort((a, b) => b.changedAt - a.changedAt || (a.pr.url < b.pr.url ? -1 : a.pr.url > b.pr.url ? 1 : 0)),
     badge: () => [...rows.values()].filter((r) => r.state.actionable && !hidden.has(r.pr.url)).length,
-    notes: () => [...(globalNote ? [globalNote] : []), ...notes.values()],
+    notes: () => [...(pollNote ? [pollNote] : []), ...(globalNote ? [globalNote] : []), ...notes.values()],
     anyRunning: () => [...rows.values()].some((r) => r.state.rule === 6),
     hiddenUrls: () => [...hidden],
     onChange: (fn) => { listeners.push(fn); },

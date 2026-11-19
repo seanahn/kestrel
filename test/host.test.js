@@ -4,6 +4,8 @@ const test = require('node:test'); const assert = require('node:assert');
 const { install, memento } = require('./vscodeStub');
 const { ui } = install();
 const ext = require('../src/extension');
+const { GitHubError } = require('../src/github');
+const { THROTTLE_NOTE } = require('../src/poller');
 
 const RATE = { remaining: 4000, resetAt: '2099-01-01T00:00:00Z', cost: 1 };
 const pr = (n, repo) => ({
@@ -125,5 +127,40 @@ test('hidden urls load from globalState and are written back on change', async (
   assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), [u1, 'https://github.com/acme/api/pull/2']);
   api.tracker.unhide(u1);
   assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), ['https://github.com/acme/api/pull/2']);
+  ext.deactivate();
+});
+
+test('the throttle note stays for every round the throttle lasts', async () => {
+  ui.out.length = 0; ui.commands = {}; ui.config = {};
+  const w = world();
+  w.client.listPrs = async (token) => { w.listed.push(token); throw new GitHubError('throttle', 'slow'); };
+  const api = ext.activate(context(), { run: w.run, client: w.client, timers: w.timers, now: () => w.now });
+  await settle(); await settle();
+  assert.deepStrictEqual(api.tracker.notes(), [THROTTLE_NOTE], 'round 1');
+  const next = w.scheduled[w.scheduled.length - 1];
+  w.now += next.ms;
+  await next.fn(); await settle();
+  assert.strictEqual(w.listed.length, 2);
+  assert.deepStrictEqual(api.tracker.notes(), [THROTTLE_NOTE], 'round 2');
+  ext.deactivate();
+});
+
+test('focus, Refresh and watch do not poll during a throttle hold', async () => {
+  ui.out.length = 0; ui.commands = {}; ui.config = {};
+  const w = world();
+  w.client.listPrs = async (token) => { w.listed.push(token); throw new GitHubError('throttle', 'slow', { retryAfterMs: 60000 }); };
+  const api = ext.activate(context(), { run: w.run, client: w.client, timers: w.timers, now: () => w.now });
+  await settle(); await settle();
+  const n = w.listed.length;
+  ui.setFocus(false); ui.setFocus(true);
+  await ui.commands['kestrel.refresh']();
+  await ui.commands['kestrel.watch']('https://github.com/acme/api/pull/9');
+  await settle(); await settle();
+  assert.strictEqual(w.listed.length, n);
+  assert.deepStrictEqual(api.tracker.notes(), [THROTTLE_NOTE]);
+  w.now += 60000;
+  await ui.commands['kestrel.refresh']();
+  await settle(); await settle();
+  assert.ok(w.listed.length > n, 'after the hold, Refresh polls');
   ext.deactivate();
 });

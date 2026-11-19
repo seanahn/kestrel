@@ -35,7 +35,8 @@ function activate(context, deps = {}) {
     run: sync.run,
     interval: () => pickInterval({ focused: vscode.window.state.focused, anyRunning: tracker.anyRunning(), fastUntil: sync.fastUntil(), now: now() }),
     timers: deps.timers,
-    onNote: (text) => { try { tracker.setGlobalNote(text); } catch (e) { log(`note failed: ${describe(e)}`); } },
+    now,
+    onNote: (text) => { try { tracker.setPollNote(text); } catch (e) { log(`note failed: ${describe(e)}`); } },
     onError: (e) => { try { log(`${new Date(now()).toISOString()} error: ${describe(e)}`); } catch (_) { /* never stall the poller */ } },
   });
 

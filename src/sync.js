@@ -13,8 +13,8 @@ const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
 const fingerprint = (i) => [i.updatedAt, i.headOid, i.mergeable, i.mergeState, i.isDraft, i.reviewDecision, i.rollup].join('|');
 const pad = (n) => String(n).padStart(2, '0');
 
-function rateError(message, retryAfterMs) {
-  return Object.assign(new Error(message), { kind: 'rate', retryAfterMs });
+function rateError(message, retryAfterMs, local = false) {
+  return Object.assign(new Error(message), { kind: 'rate', retryAfterMs, local });
 }
 
 function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
@@ -77,7 +77,7 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
   async function run() {
     let logins;
     try { logins = await accounts.list(); } catch (e) {
-      if (e instanceof NoGhError) { tracker.setGlobalNote(e.message); throw rateError(e.message, NO_GH_RETRY_MS); }
+      if (e instanceof NoGhError) { tracker.setGlobalNote(e.message); throw rateError(e.message, NO_GH_RETRY_MS, true); }
       throw e;
     }
     tracker.setGlobalNote(null);

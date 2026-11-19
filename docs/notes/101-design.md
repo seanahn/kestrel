@@ -246,7 +246,14 @@ only one authored). Rows are keyed by PR URL, so duplicates collapse.
   on its own. With the two-level query this costs little. Sharing one
   poller between windows is out of scope for the first version
   *(builder's call)*.
-- Refresh polls now.
+- Refresh polls now, except while a throttle backoff, Retry-After or rate
+  limit wait holds: then Refresh, window focus, `kestrel.watch` and the
+  poll after a failed merge all wait for it, and the note at the top says
+  why. The "no `gh`" wait is local, so Refresh still retries at once
+  *(ruling during build, 2026-11-19)*.
+- The throttling / offline / rate-limit note is shown for every round the
+  condition lasts, separate from the "no `gh`" note *(ruling during build,
+  2026-11-19)*.
 
 **Spotting a new PR quickly** *(builder's call)*: GitHub's search index can
 take a minute to include a new PR, and an extension can't see what an

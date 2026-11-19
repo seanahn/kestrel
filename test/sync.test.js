@@ -234,7 +234,7 @@ test('tokenFor returns the account token', async () => {
 
 test('no gh sets note and retries in 30 s', async () => {
   const { sync, tracker } = setup({ logins: [] });
-  await assert.rejects(sync.run(), (e) => e.kind === 'rate' && e.retryAfterMs === 30000 && e.message === 'Sign in with `gh auth login`');
+  await assert.rejects(sync.run(), (e) => e.kind === 'rate' && e.retryAfterMs === 30000 && e.local === true && e.message === 'Sign in with `gh auth login`');
   assert.deepStrictEqual(tracker.notes(), ['Sign in with `gh auth login`']);
 });
 

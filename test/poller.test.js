@@ -127,3 +127,38 @@ test('stopped poller does not reschedule after its run ends', async () => {
   p.stop(); release(); await settle();
   assert.deepStrictEqual(timers.delays, []);
 });
+
+test('kick is a no-op while a backoff, Retry-After or rate wait holds; runs again after it', async () => {
+  for (const err of [
+    new GitHubError('throttle', 'slow', { retryAfterMs: 7000 }),
+    new GitHubError('offline', 'no network'),
+    Object.assign(new Error('GitHub rate limit, resuming at 09:05'), { kind: 'rate', retryAfterMs: 90000 }),
+  ]) {
+    const clock = { t: 1000 }; let runs = 0;
+    const timers = fakeTimers();
+    const p = createPoller({ run: async () => { runs++; if (runs === 1) throw err; }, interval: () => 5000, timers, now: () => clock.t });
+    p.start(); await settle();
+    assert.strictEqual(runs, 1);
+    const wait = timers.delays[0];
+    p.kick(); await settle();
+    assert.strictEqual(runs, 1, `${err.kind}: kick during the hold does nothing`);
+    assert.notStrictEqual(timers.pending, null, `${err.kind}: the scheduled retry is kept`);
+    clock.t += wait;
+    p.kick(); await settle();
+    assert.strictEqual(runs, 2, `${err.kind}: kick after the hold runs`);
+    p.stop();
+  }
+});
+
+test('a local wait (no gh) does not hold kick, and shows no poll note', async () => {
+  const clock = { t: 1000 }; let runs = 0; const notes = [];
+  const timers = fakeTimers();
+  const err = Object.assign(new Error('Sign in with `gh auth login`'), { kind: 'rate', retryAfterMs: 30000, local: true });
+  const p = createPoller({ run: async () => { runs++; throw err; }, interval: () => 5000, timers, now: () => clock.t, onNote: (x) => notes.push(x) });
+  p.start(); await settle();
+  assert.deepStrictEqual(timers.delays, [30000]);
+  p.kick(); await settle();
+  assert.strictEqual(runs, 2);
+  assert.deepStrictEqual(notes, []);
+  p.stop();
+});

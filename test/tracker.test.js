@@ -272,3 +272,15 @@ test('onHiddenChange reports urls; hide/unhide fire onChange once, no-ops never'
   tr.apply('octo-dev', [pr(1)]);
   assert.deepStrictEqual(seen[3], []);
 });
+
+test('the poll note has its own slot, before the global note and account notes', () => {
+  const { tr } = make();
+  tr.fail('octo-dev', 'd');
+  tr.setGlobalNote('g');
+  tr.setPollNote('GitHub is throttling, retrying');
+  assert.deepStrictEqual(tr.notes(), ['GitHub is throttling, retrying', 'g', 'd']);
+  tr.setGlobalNote(null);
+  assert.deepStrictEqual(tr.notes(), ['GitHub is throttling, retrying', 'd'], 'clearing the global note keeps the poll note');
+  tr.setPollNote(null);
+  assert.deepStrictEqual(tr.notes(), ['d']);
+});
