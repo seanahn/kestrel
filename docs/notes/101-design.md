@@ -352,6 +352,35 @@ The model is the part worth testing hardest. The state table above should
 become a table-driven test, with one fixture PR per row plus the rule-order
 cases (failure + running, conflict + failure, stale review summary).
 
+## Decisions made while planning (2026-11-19)
+
+All *(builder's call)* unless noted.
+
+- **Public-repo guard.** A gitignored `.private-words` file lists the
+  terms that must never appear. A test scans every tracked file and every
+  commit message for them, and skips when the file is absent (on a fresh
+  clone, for instance).
+- **Search pagination.** 50 PRs per page, up to 4 pages (200 PRs). A
+  truncated search would make the overflow look merged.
+- **Detail fetches** are batched 20 ids per `nodes(ids:)` request. A PR is
+  re-fetched in detail when any of `updatedAt, headOid, mergeable,
+  mergeStateStatus, isDraft, reviewDecision`, or the check rollup changed,
+  or while its rollup is pending.
+- **Prompt texts** are fixed as in the state table, each ending with
+  `({url})`.
+- **The extra link** (findings or unresolved comments) shows on every row
+  except draft, blockers and running.
+- **Highlight.** A highlighted row is marked seen 4 s after it is drawn
+  while the panel is visible, or on hover if it arrived while the panel
+  was hidden.
+- **No `gh`, or no accounts:** the note shows and kestrel retries every
+  30 s.
+- **No allowed merge method:** the row shows "This repo allows no merge
+  method kestrel can use".
+- **`perch.insertText`** adds a leading space when the waiting draft
+  doesn't end in whitespace. It reveals the tab and returns `true`, or
+  returns `false` when there is no perch tab.
+
 ## Diagrams
 
 A PR's review finishing and Sean handing it to the agent:
