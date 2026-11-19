@@ -1,16 +1,20 @@
 'use strict';
 // Hand-off to the agent (design 101, "Handing a prompt to the agent"): put the prompt into the perch agent tab's
 // input via the optional perch.insertText command, else on the clipboard. It never sends the prompt.
+// After a merge, perch.notePrMerged (if present) records the merge in the session that created the PR
+// (design 101, "Telling the session a PR merged").
 function createHandoff(vscode) {
-  let hasPerch = null;
-  const refresh = async () => {
-    try { hasPerch = (await vscode.commands.getCommands(true)).includes('perch.insertText'); } catch { hasPerch = false; }
+  let commands = null;
+  const has = async (id) => {
+    if (commands === null) {
+      try { commands = new Set(await vscode.commands.getCommands(true)); } catch { commands = new Set(); }
+    }
+    return commands.has(id);
   };
-  vscode.extensions.onDidChange(() => { hasPerch = null; });
+  vscode.extensions.onDidChange(() => { commands = null; });
 
   async function send(prompt) {
-    if (hasPerch === null) await refresh();
-    if (hasPerch) {
+    if (await has('perch.insertText')) {
       try {
         if ((await vscode.commands.executeCommand('perch.insertText', prompt)) === true) return 'perch';
       } catch { /* fall back to the clipboard */ }
@@ -19,7 +23,18 @@ function createHandoff(vscode) {
     vscode.window.setStatusBarMessage('Prompt copied. Paste it into your agent.', 4000);
     return 'clipboard';
   }
-  return { send };
+
+  /** perch's answer ({ result, sessionId }), null when perch can't take it, never a throw. */
+  async function noteMerged(url) {
+    if (!(await has('perch.notePrMerged'))) return null;
+    try {
+      return (await vscode.commands.executeCommand('perch.notePrMerged', url)) || null;
+    } catch (e) {
+      return { result: 'failed', error: (e && e.message) || String(e) };
+    }
+  }
+
+  return { send, noteMerged };
 }
 
 module.exports = { createHandoff };

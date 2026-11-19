@@ -46,3 +46,31 @@ test('perch installed later is picked up on extensions change', async () => {
   ui.extensionsChanged.fire();
   assert.strictEqual(await h.send('b'), 'perch');
 });
+
+test('noteMerged tells perch which PR merged, and nothing else happens', async () => {
+  const { vscode, ui } = install();
+  ui.extraCommands = ['perch.insertText', 'perch.notePrMerged'];
+  ui.extraHandlers['perch.notePrMerged'] = () => ({ result: 'background', sessionId: 'abc' });
+  const url = 'https://github.com/acme/widgets/pull/7';
+  assert.deepStrictEqual(await createHandoff(vscode).noteMerged(url), { result: 'background', sessionId: 'abc' });
+  assert.deepStrictEqual(ui.executed, [['perch.notePrMerged', url]]);
+  assert.deepStrictEqual(ui.copied, []);
+  assert.deepStrictEqual(ui.status, []);
+});
+
+test('noteMerged without perch, or with an older perch, does nothing', async () => {
+  const a = install();
+  assert.strictEqual(await createHandoff(a.vscode).noteMerged('https://github.com/acme/widgets/pull/7'), null);
+  assert.deepStrictEqual(a.ui.executed, []);
+  const b = install();
+  b.ui.extraCommands = ['perch.insertText'];
+  assert.strictEqual(await createHandoff(b.vscode).noteMerged('https://github.com/acme/widgets/pull/7'), null);
+  assert.deepStrictEqual(b.ui.executed, []);
+});
+
+test('noteMerged never throws when perch fails', async () => {
+  const { vscode, ui } = install();
+  ui.extraCommands = ['perch.notePrMerged'];
+  ui.extraHandlers['perch.notePrMerged'] = () => { throw new Error('boom'); };
+  assert.deepStrictEqual(await createHandoff(vscode).noteMerged('https://github.com/acme/widgets/pull/7'), { result: 'failed', error: 'boom' });
+});

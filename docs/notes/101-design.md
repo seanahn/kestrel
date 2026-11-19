@@ -110,7 +110,7 @@ the PR's latest commit.
 | 2 | Merge conflict (`mergeable: CONFLICTING`) | "conflicts" | prompt: "resolve the merge conflicts on PR {ref} ({url})" |
 | 3 | Any check on head finished as failure, timed-out, cancelled, or action-required | "CI failed: {first failed check name}" (+ "and N more") | prompt: "check the failing `{name}` check on PR {ref} ({url})" |
 | 4 | Review bot summary on head has blockers | "{n} blocker(s)" | prompt: "check the blocker comments on PR {ref} ({url})" |
-| 5 | A human reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`) | "changes requested" | prompt: "check the requested changes on PR {ref} ({url})" |
+| 5 | A reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`), unless every review requesting changes is on an older commit while checks still run on the head: then rule 6 *(Sean, 2026-11-19: a re-review is under way and will replace it)* | "changes requested" | prompt: "check the requested changes on PR {ref} ({url})" |
 | 6 | Checks still pending or queued on head, or GitHub hasn't computed mergeability yet (`UNKNOWN`) | "checks {done}/{total}" spinner | nothing |
 | 7 | Branch behind base and the repo requires it up to date (`mergeStateStatus: BEHIND`) | "behind base" | updates the branch in place (see "Updating a branch"); after GitHub refuses, prompt: "update PR {ref} with its base branch ({url})" |
 | 8 | Blocked for another reason (`BLOCKED`, e.g. required review missing) | "blocked: needs review" or the reason GitHub gives | opens the PR in the browser |
@@ -407,6 +407,26 @@ Clicking **merge**:
 7. The merge uses the token of the account the row came from. A second
    click while a merge is in flight does nothing (the link shows
    "merging…"). Cancelling the confirm does nothing.
+
+## Telling the session a PR merged (added 2026-11-19, Sean's request)
+
+After GitHub confirms a merge from the panel, kestrel calls
+`perch.notePrMerged(url)` if perch provides it, and does nothing more.
+perch finds the Claude Code session that created the PR (the one where `gh
+pr create` printed its URL) and records the merge there:
+
+- **The session is open in a perch tab:** a note line appears in the tab,
+  and the fact goes along with the next message Sean sends there. No tab
+  switch and no model call.
+- **The session isn't open:** one headless `claude -p --resume` run with no
+  tools, no MCP servers, one turn, on Haiku, whose prompt is only "for the
+  record, PR … was merged; reply 'Noted.'"
+
+Sean's rule: record the fact only. Nothing may act on it (no comments, no
+ticket changes, no pushes). He continues the follow-ups himself the next
+time he opens that session. Without perch, nothing happens. kestrel logs
+perch's answer to its output channel. The search, the tab note and the
+headless run are perch's (see perch's note 110).
 
 ## Updating a branch (added 2026-11-19, Sean's request)
 

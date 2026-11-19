@@ -46,7 +46,10 @@ function activate(context, deps = {}) {
     vscode, client, tokenFor: sync.tokenFor, tracker, pollNow: () => poller.kick(),
     preferred: () => cfg().get('mergeMethod', 'squash'),
     onBusyChange: () => panel.render(),
-    onMerged: (url) => sync.unwatch(url),
+    onMerged: (url) => {
+      sync.unwatch(url);
+      handoff.noteMerged(url).then((r) => { if (r) log(`${new Date(now()).toISOString()} noted merge of ${url} in perch: ${r.result}${r.error ? ' ' + r.error : ''}`); });
+    },
     onUpdated: () => sync.fast(),
   });
   panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger });

@@ -36,7 +36,7 @@ const DETAIL_FIELDS = `
     ... on CheckRun { name status conclusion }
     ... on StatusContext { context state }
   } } } } } }
-  reviews(last: 20) { nodes { author { login } body commit { oid } submittedAt } }
+  reviews(last: 20) { nodes { author { login } body state commit { oid } submittedAt } }
   reviewThreads(first: 50) { nodes { isResolved comments(first: 1) { nodes { author { login } } } } }`;
 
 const DETAIL_QUERY = `query($ids: [ID!]!) {
@@ -136,7 +136,7 @@ function toPr(n) {
       ...(rollup && rollup.contexts && rollup.contexts.pageInfo && rollup.contexts.pageInfo.hasNextPage ? [MORE_CHECKS] : []),
     ],
     reviews: nodesOf(n.reviews).filter(Boolean).map((r) => ({
-      body: r.body || '', commitOid: (r.commit && r.commit.oid) || null, submittedAt: r.submittedAt,
+      body: r.body || '', state: r.state || null, commitOid: (r.commit && r.commit.oid) || null, submittedAt: r.submittedAt,
     })),
     unresolvedThreads: nodesOf(n.reviewThreads).filter((t) => t && t.isResolved === false).length,
     mergeMethods: { squash: !!repo.squashMergeAllowed, merge: !!repo.mergeCommitAllowed, rebase: !!repo.rebaseMergeAllowed },

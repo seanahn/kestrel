@@ -126,3 +126,18 @@ test('actionable is true exactly for ACTIONABLE_RULES', () => {
     assert.strictEqual(s.actionable, ACTIONABLE_RULES.includes(s.rule));
   });
 });
+
+test('changes requested on an older commit yields to checks still running on the head', () => {
+  const stale = { body: 'x', state: 'CHANGES_REQUESTED', commitOid: 'old1', submittedAt: '2026-01-01T00:00:00Z' };
+  const running = [{ name: 'review', state: 'pending' }, { name: 'test', state: 'success' }];
+  const s = rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [stale], checks: running }));
+  assert.strictEqual(s.rule, 6);
+  assert.strictEqual(s.text, 'checks 1/2');
+  // the reviewer finished and still wants changes, on the head this time
+  const fresh = { ...stale, commitOid: pr().headOid, submittedAt: '2026-01-02T00:00:00Z' };
+  assert.strictEqual(rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [stale, fresh], checks: running })).rule, 5);
+  // nothing running: the old request still stands
+  assert.strictEqual(rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [stale], checks: [{ name: 'test', state: 'success' }] })).rule, 5);
+  // no review states known (a person's review fetched without state): keep changes requested
+  assert.strictEqual(rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [], checks: running })).rule, 5);
+});

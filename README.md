@@ -36,7 +36,7 @@ The first line that matches decides the row.
 | conflicts | It has merge conflicts | prompt: resolve them |
 | CI failed: name | A check on the latest commit failed, timed out, was cancelled or needs action | prompt: check that check |
 | N blockers | The review bot's summary for the latest commit lists blockers | prompt: check the blocker comments |
-| changes requested | A reviewer requested changes | prompt: check the requested changes |
+| changes requested | A reviewer requested changes. If that review is on an older commit and checks are still running on the new one, the row shows the checks instead, until the new review lands | prompt: check the requested changes |
 | checks done/total | Checks are still running, or GitHub is still working out mergeability | nothing |
 | behind base | The branch must be up to date with its base and isn't | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
 | blocked: reason | Blocked for another reason, such as a missing required review | opens the PR |

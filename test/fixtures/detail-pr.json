@@ -52,6 +52,7 @@
                 "login": "review-bot"
               },
               "body": "looks fine",
+              "state": "COMMENTED",
               "commit": {
                 "oid": "head7"
               },
@@ -60,6 +61,7 @@
             {
               "author": null,
               "body": "",
+              "state": "CHANGES_REQUESTED",
               "commit": null,
               "submittedAt": "2026-01-05T00:02:00Z"
             }

@@ -70,8 +70,8 @@ test('detailPrs batches 20 and maps one PR to the exact Pr', async () => {
     reviewDecision: 'REVIEW_REQUIRED',
     checks: [{ name: 'test', state: 'success' }, { name: 'ci/legacy', state: 'pending' }],
     reviews: [
-      { body: 'looks fine', commitOid: 'head7', submittedAt: '2026-01-05T00:01:00Z' },
-      { body: '', commitOid: null, submittedAt: '2026-01-05T00:02:00Z' },
+      { body: 'looks fine', state: 'COMMENTED', commitOid: 'head7', submittedAt: '2026-01-05T00:01:00Z' },
+      { body: '', state: 'CHANGES_REQUESTED', commitOid: null, submittedAt: '2026-01-05T00:02:00Z' },
     ],
     unresolvedThreads: 2,
     mergeMethods: { squash: true, merge: false, rebase: true },

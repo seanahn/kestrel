@@ -43,10 +43,15 @@ function rowState(pr) {
     return out(4, `4:${summary.blockers}`, plural(summary.blockers, 'blocker'), 'red',
       ask(`check the blocker comments on PR ${ref} (${pr.url})`), false);
   }
-  if (pr.reviewDecision === 'CHANGES_REQUESTED') {
+  const running = checks.some((c) => c.state === 'pending');
+  // A request for changes on an older commit is about to be replaced when checks (the reviewer among them) are still
+  // running on the head: show them running until the new review lands (design 101, "States", rule 5).
+  const requests = (pr.reviews || []).filter((r) => r.state === 'CHANGES_REQUESTED');
+  const staleRequest = running && requests.length > 0 && !requests.some((r) => r.commitOid === pr.headOid);
+  if (pr.reviewDecision === 'CHANGES_REQUESTED' && !staleRequest) {
     return out(5, '5', 'changes requested', 'red', ask(`check the requested changes on PR ${ref} (${pr.url})`));
   }
-  if (checks.some((c) => c.state === 'pending') || pr.mergeable === 'UNKNOWN' || pr.mergeState === 'UNKNOWN') {
+  if (running || pr.mergeable === 'UNKNOWN' || pr.mergeState === 'UNKNOWN') {
     const done = checks.filter((c) => c.state !== 'pending').length;
     return out(6, '6', checks.length ? `checks ${done}/${checks.length}` : 'waiting for GitHub', 'running', null, false);
   }
