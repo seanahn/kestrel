@@ -1,0 +1,134 @@
+'use strict';
+// One sync round (design 101, "Accounts", "The query", "Polling"): for each gh account list the open PRs cheaply,
+// fetch details only for PRs that changed, and hand the rows to the tracker.
+const { NoGhError } = require('./accounts');
+
+const FAST_WINDOW_MS = 300000;
+const RATE_FLOOR = 200;
+const NO_GH_RETRY_MS = 30000;
+const PROBABLY_RUNNING = new Set(['PENDING', 'EXPECTED']);
+
+const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
+const fingerprint = (i) => [i.updatedAt, i.headOid, i.mergeable, i.mergeState, i.isDraft, i.reviewDecision, i.rollup].join('|');
+const pad = (n) => String(n).padStart(2, '0');
+
+function rateError(message, retryAfterMs) {
+  return Object.assign(new Error(message), { kind: 'rate', retryAfterMs });
+}
+
+function createSync({ accounts, client, tracker, now }) {
+  const caches = new Map();   // login -> Map(pr id -> { key, pr })
+  const watched = new Set();  // urls to keep fetching until a list returns them
+  let fastUntil = 0;
+
+  const cacheFor = (login) => { if (!caches.has(login)) caches.set(login, new Map()); return caches.get(login); };
+
+  /** List + detail for one account with one token. Returns { items, prs, rates }; the cache is updated only on success. */
+  async function fetchAccount(login, token) {
+    const cache = cacheFor(login);
+    const rates = [];
+    const listed = await client.listPrs(token);
+    rates.push(listed.rateLimit);
+    const need = listed.items.filter((i) => {
+      const c = cache.get(i.id);
+      return !c || c.key !== fingerprint(i) || PROBABLY_RUNNING.has(i.rollup);
+    });
+    const fetched = new Map();
+    if (need.length) {
+      const d = await client.detailPrs(token, need.map((i) => i.id));
+      rates.push(d.rateLimit);
+      for (const pr of d.prs) fetched.set(pr.id, pr);
+    }
+    const prs = [];
+    const keep = new Set();
+    for (const i of listed.items) {
+      keep.add(i.id);
+      const pr = fetched.get(i.id);
+      if (pr) cache.set(i.id, { key: fingerprint(i), pr: { ...pr, account: login } });
+      const c = cache.get(i.id);
+      if (c) prs.push(c.pr);
+    }
+    for (const id of [...cache.keys()]) if (!keep.has(id)) cache.delete(id);
+    return { items: listed.items, prs, rates };
+  }
+
+  /** One account's round; null when it failed (the tracker has been told), throws on throttle/offline. */
+  async function syncAccount(login) {
+    let token;
+    try { token = await accounts.token(login); } catch (_) { tracker.drop(login, expired(login)); return null; }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fetchAccount(login, token);
+      } catch (e) {
+        const kind = e && e.kind;
+        if (kind === 'auth') {
+          if (attempt > 0) { tracker.drop(login, expired(login)); return null; }
+          try { token = await accounts.token(login, { fresh: true }); } catch (_) { tracker.drop(login, expired(login)); return null; }
+          continue;
+        }
+        if (kind === 'partial' || kind === 'http' || kind === 'refused') { tracker.fail(login, `${login}: ${e.message}`); return null; }
+        throw e;
+      }
+    }
+  }
+
+  async function run() {
+    let logins;
+    try { logins = await accounts.list(); } catch (e) {
+      if (e instanceof NoGhError) { tracker.setGlobalNote(e.message); throw rateError(e.message, NO_GH_RETRY_MS); }
+      throw e;
+    }
+    tracker.setGlobalNote(null);
+
+    const results = [];   // { login, prs, items }
+    const rates = [];
+    let failure = null;
+    try {
+      for (const login of logins) {
+        const r = await syncAccount(login);
+        if (!r) continue;
+        results.push({ login, prs: r.prs });
+        rates.push(...r.rates);
+        for (const i of r.items) watched.delete(i.url);
+      }
+      if (watched.size && results.length) {
+        const first = results[0];
+        const token = await accounts.token(first.login).catch(() => null);
+        if (token) {
+          for (const url of [...watched]) {
+            let pr = null;
+            try { pr = await client.prByUrl(token, url); } catch (e) {
+              if (e && (e.kind === 'throttle' || e.kind === 'offline')) throw e;
+              continue;
+            }
+            if (pr) first.prs = [...first.prs, { ...pr, account: first.login }];
+            else watched.delete(url);
+          }
+        }
+      }
+    } catch (e) { failure = e; }
+
+    for (const r of results) { tracker.apply(r.login, r.prs); tracker.clearNote(r.login); }
+    if (failure) throw failure;
+
+    const known = rates.filter((r) => r && r.resetAt);
+    if (known.length) {
+      const low = known.reduce((a, b) => (b.remaining < a.remaining ? b : a));
+      if (low.remaining < RATE_FLOOR) {
+        const reset = Date.parse(low.resetAt);
+        const d = new Date(reset);
+        throw rateError(`GitHub rate limit, resuming at ${pad(d.getHours())}:${pad(d.getMinutes())}`, Math.max(0, reset - now()));
+      }
+    }
+  }
+
+  return {
+    run,
+    watch(url) { watched.add(url); fastUntil = now() + FAST_WINDOW_MS; },
+    fast() { fastUntil = now() + FAST_WINDOW_MS; },
+    fastUntil: () => fastUntil,
+    tokenFor: (login) => accounts.token(login),
+  };
+}
+
+module.exports = { createSync, FAST_WINDOW_MS, RATE_FLOOR };
