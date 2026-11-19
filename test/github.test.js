@@ -160,3 +160,37 @@ test('a 2xx without JSON data is an http error, never an empty success', async (
   await assert.rejects(createClient({ request: fake(ok(null)).request }).detailPrs('tok', ['PR_1']), kindOf('http', { status: 200 }));
   await assert.rejects(createClient({ request: fake(ok({ data: null })).request }).detailPrs('tok', ['PR_1']), kindOf('http', { status: 200 }));
 });
+
+test('more than 50 checks: a synthetic pending check keeps the row running, never mergeable', async () => {
+  const { rowState } = require('../src/model');
+  const node = JSON.parse(JSON.stringify(detail.data.nodes[0]));
+  node.mergeStateStatus = 'CLEAN';
+  node.reviewDecision = null;
+  const ctx = node.commits.nodes[0].commit.statusCheckRollup.contexts;
+  ctx.nodes = [{ __typename: 'CheckRun', name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
+  ctx.pageInfo = { hasNextPage: true };
+  const f = fake(ok({ data: { nodes: [node], rateLimit: { remaining: 4000, resetAt: 'r', cost: 1 } } }));
+  const [pr] = (await createClient({ request: f.request }).detailPrs('tok', ['PR_7'])).prs;
+  assert.match(f.calls[0].body.query, /contexts\(first: 50\) \{ pageInfo \{ hasNextPage \}/);
+  assert.strictEqual(pr.checks.length, 2);
+  assert.strictEqual(pr.checks[1].state, 'pending');
+  assert.strictEqual(rowState(pr).rule, 6);
+  ctx.pageInfo = { hasNextPage: false };
+  const g = fake(ok({ data: { nodes: [node], rateLimit: { remaining: 4000, resetAt: 'r', cost: 1 } } }));
+  const [done] = (await createClient({ request: g.request }).detailPrs('tok', ['PR_7'])).prs;
+  assert.strictEqual(rowState(done).rule, 9);
+});
+
+test('GraphQL RATE_LIMITED and a 403 with no remaining points are rate waits until x-ratelimit-reset', async () => {
+  const T = Date.parse('2026-03-01T09:00:00Z');
+  const reset = Math.floor(T / 1000) + 300;
+  const d = new Date(reset * 1000);
+  const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const call = (r) => createClient({ request: fake(r).request, now: () => T }).listPrs('tok');
+  const isRate = (ms) => (e) => kindOf('rate', { retryAfterMs: ms })(e) && e.message === `GitHub rate limit, resuming at ${hhmm}`;
+  await assert.rejects(call(ok({ data: null, errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded' }] }, { 'x-ratelimit-reset': String(reset) })), isRate(300000));
+  await assert.rejects(call(fail(403, { message: 'API rate limit exceeded' }, { 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': String(reset) })), isRate(300000));
+  await assert.rejects(call(fail(403, null, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(T / 1000) - 10) })), kindOf('rate', { retryAfterMs: 5000 }));
+  await assert.rejects(call(ok({ data: null, errors: [{ type: 'RATE_LIMITED', message: 'x' }] })), kindOf('rate', { retryAfterMs: 60000 }));
+  await assert.rejects(call(fail(403, null, { 'x-ratelimit-remaining': '12' })), kindOf('http', { status: 403 }));
+});

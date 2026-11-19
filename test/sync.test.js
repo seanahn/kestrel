@@ -358,3 +358,11 @@ test('watch accepts only github.com PR urls', async () => {
   await sync.run();
   assert.deepStrictEqual(calls.byUrl, []);
 });
+
+test('a rate error from GitHub is rethrown to the poller, rows kept', async () => {
+  const { sync, tracker, state } = setup({ lists: { 'octo-dev': [item(1)] } });
+  await sync.run();
+  state.lists['octo-dev'] = () => { throw new GitHubError('rate', 'GitHub rate limit, resuming at 09:05', { retryAfterMs: 9000 }); };
+  await assert.rejects(sync.run(), (e) => e.kind === 'rate' && e.retryAfterMs === 9000 && !e.local);
+  assert.deepStrictEqual(nums(tracker), [1]);
+});

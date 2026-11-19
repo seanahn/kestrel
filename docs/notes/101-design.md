@@ -229,6 +229,10 @@ and for each PR (detail query):
 - `reviews(last: 20) { nodes { author { login } body commit { oid } submittedAt } }`
 - `reviewThreads(first: 50) { nodes { isResolved comments(first: 1) { nodes { author { login } } } } }`
 
+A head commit with more than 50 checks: kestrel sees only the first 50,
+so it adds one "more checks" pending check and the row stays running
+rather than showing **merge** *(ruling during build, 2026-11-19)*.
+
 The same PR can come back from two accounts (e.g. a repo both can see but
 only one authored). Rows are keyed by PR URL, so duplicates collapse.
 
@@ -247,7 +251,10 @@ only one authored). Rows are keyed by PR URL, so duplicates collapse.
   "Offline, retrying" shown at the top.
 - `rateLimit { remaining resetAt cost }` is requested with each query.
   Below 200 remaining, kestrel waits until `resetAt` and shows "GitHub rate
-  limit, resuming at HH:MM" *(builder's call)*.
+  limit, resuming at HH:MM" *(builder's call)*. A response that is already
+  rate-limited (a GraphQL error of type `RATE_LIMITED`, or a 403 with
+  `x-ratelimit-remaining: 0`) gets the same wait, until
+  `x-ratelimit-reset`, at least 5 s *(ruling during build, 2026-11-19)*.
 - While throttled, rate-limited or offline, rows stay as last seen, with
   the note at the top. Rows are removed only when a successful, complete
   search no longer returns them.

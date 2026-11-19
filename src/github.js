@@ -1,6 +1,7 @@
 'use strict';
 // GitHub GraphQL client (design 101, "The query" and "Polling"): the list query, the detail query, merge, and
-// error mapping. Every HTTP call goes through one injectable request(token, body).
+// error mapping (a primary rate limit is kind 'rate', which the poller waits out). Every HTTP call goes through one
+// injectable request(token, body).
 const https = require('node:https');
 
 const ENDPOINT = 'https://api.github.com/graphql';
@@ -10,6 +11,10 @@ const MAX_PAGES = 4;
 const BATCH = 20;
 const TIMEOUT_MS = 20000;
 const RATE = 'rateLimit { remaining resetAt cost }';
+const MIN_RATE_WAIT_MS = 5000;
+const UNKNOWN_RATE_WAIT_MS = 60000;
+// Stands in for checks past the first 50: kestrel can't see them, so the PR counts as still running.
+const MORE_CHECKS = { name: 'more checks', state: 'pending' };
 
 const LIST_QUERY = `query($q: String!, $after: String) {
   search(query: $q, type: ISSUE, first: ${PAGE}, after: $after) {
@@ -26,7 +31,7 @@ const DETAIL_FIELDS = `
   id number title url isDraft updatedAt state author { login }
   repository { nameWithOwner squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
   mergeable mergeStateStatus reviewDecision headRefOid
-  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { nodes {
+  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { pageInfo { hasNextPage } nodes {
     __typename
     ... on CheckRun { name status conclusion }
     ... on StatusContext { context state }
@@ -122,7 +127,10 @@ function toPr(n) {
     state: n.state, author: (n.author && n.author.login) || null,
     isDraft: n.isDraft, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable,
     mergeState: n.mergeStateStatus, reviewDecision: n.reviewDecision || null,
-    checks: normalizeChecks(nodesOf(rollup && rollup.contexts)),
+    checks: [
+      ...normalizeChecks(nodesOf(rollup && rollup.contexts)),
+      ...(rollup && rollup.contexts && rollup.contexts.pageInfo && rollup.contexts.pageInfo.hasNextPage ? [MORE_CHECKS] : []),
+    ],
     reviews: nodesOf(n.reviews).filter(Boolean).map((r) => ({
       body: r.body || '', commitOid: (r.commit && r.commit.oid) || null, submittedAt: r.submittedAt,
     })),
@@ -141,7 +149,20 @@ function retryAfterMs(headers) {
   return Number.isFinite(v) && v >= 0 && header(headers, 'retry-after') !== undefined ? v * 1000 : undefined;
 }
 
-function createClient({ request = defaultRequest } = {}) {
+const pad = (n) => String(n).padStart(2, '0');
+
+/** A primary rate limit hit: wait until x-ratelimit-reset (epoch seconds), at least 5 s; 60 s when it's missing. */
+function rateLimited(headers, now, status) {
+  const reset = Number(header(headers, 'x-ratelimit-reset'));
+  if (!Number.isFinite(reset) || header(headers, 'x-ratelimit-reset') === undefined) {
+    return new GitHubError('rate', 'GitHub rate limit, retrying', { status, retryAfterMs: UNKNOWN_RATE_WAIT_MS });
+  }
+  const d = new Date(reset * 1000);
+  return new GitHubError('rate', `GitHub rate limit, resuming at ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    { status, retryAfterMs: Math.max(MIN_RATE_WAIT_MS, reset * 1000 - now()) });
+}
+
+function createClient({ request = defaultRequest, now = Date.now } = {}) {
   /** Sends one body and returns its `data`, or throws a GitHubError. errorKind is the kind for a 200 with errors. */
   async function send(token, body, errorKind) {
     let res;
@@ -153,11 +174,15 @@ function createClient({ request = defaultRequest } = {}) {
     const { status, headers, json } = res;
     const msg = (json && json.message) || `HTTP ${status}`;
     if (status === 401) throw new GitHubError('auth', msg, { status });
+    if (status === 403 && String(header(headers, 'x-ratelimit-remaining')) === '0') throw rateLimited(headers, now, status);
     const after = retryAfterMs(headers);
     if (status === 429 || (status === 403 && (after !== undefined || /secondary rate limit/i.test(msg)))) {
       throw new GitHubError('throttle', msg, { status, retryAfterMs: after });
     }
     if (status < 200 || status >= 300) throw new GitHubError('http', msg, { status });
+    if (json && Array.isArray(json.errors) && json.errors.some((e) => e && e.type === 'RATE_LIMITED')) {
+      throw rateLimited(headers, now, status);
+    }
     if (json && Array.isArray(json.errors) && json.errors.length) {
       throw new GitHubError(errorKind, String(json.errors[0].message || 'GitHub returned an error'), { status });
     }
