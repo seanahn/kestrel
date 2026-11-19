@@ -43,7 +43,7 @@ function setup({ logins = ['octo-dev'], lists = {}, byUrl = {}, tokenFails = {},
       const all = [...Object.values(state.lists).flatMap((s) => (Array.isArray(s) ? s : [])), ...Object.values(byUrl), item(1)];
       return { prs: ids.map((id) => full(all.find((i) => i.id === id))), rateLimit: rate() };
     },
-    prByUrl: async (token, url) => { calls.byUrl.push([token, url]); return byUrl[url] ? full(byUrl[url]) : null; },
+    prByUrl: async (token, url) => { calls.byUrl.push([token, url]); if (state.byUrlError) throw state.byUrlError; return byUrl[url] ? full(byUrl[url]) : null; },
   };
   const tracker = createTracker({ now: () => clock.t });
   const sync = createSync({ accounts, client, tracker, now: () => clock.t });
@@ -179,6 +179,42 @@ test('watched url included until listed', async () => {
   await sync.run();
   assert.strictEqual(calls.byUrl.length, 2, 'unwatched once listed');
   assert.deepStrictEqual(nums(tracker), [1, 9]);
+});
+
+test('watched row stays when a later account is throttled', async () => {
+  const other = item(9, { url: 'https://github.com/acme/api/pull/9' });
+  const { sync, tracker, state } = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1)], 'octo-work': [item(3)] }, byUrl: { [other.url]: other } });
+  sync.watch(other.url);
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1, 3, 9]);
+  state.lists['octo-work'] = () => { throw new GitHubError('throttle', 'slow', { retryAfterMs: 1000 }); };
+  await assert.rejects(sync.run(), (e) => e.kind === 'throttle');
+  assert.deepStrictEqual(nums(tracker), [1, 3, 9]);
+});
+
+test('watched row stays when prByUrl fails', async () => {
+  const other = item(9, { url: 'https://github.com/acme/api/pull/9' });
+  const byUrl = { [other.url]: other };
+  const { sync, tracker, state } = setup({ lists: { 'octo-dev': [item(1)] }, byUrl });
+  sync.watch(other.url);
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1, 9]);
+  for (const kind of ['partial', 'http', 'throttle']) {
+    state.byUrlError = new GitHubError(kind, 'x', { retryAfterMs: 1000 });
+    if (kind === 'throttle') await assert.rejects(sync.run(), (e) => e.kind === 'throttle'); else await sync.run();
+    assert.deepStrictEqual(nums(tracker), [1, 9], kind);
+  }
+});
+
+test('rate wait is floored at 5 s', async () => {
+  const resetAt = new Date(T0 - 60000).toISOString();
+  const { sync } = setup({ lists: { 'octo-dev': [item(1)] }, rate: () => ({ remaining: 5, resetAt, cost: 1 }) });
+  await assert.rejects(sync.run(), (e) => e.kind === 'rate' && e.retryAfterMs === 5000);
+});
+
+test('unparseable rate reset is ignored', async () => {
+  const { sync } = setup({ lists: { 'octo-dev': [item(1)] }, rate: () => ({ remaining: 5, resetAt: 'not a date', cost: 1 }) });
+  await sync.run();
 });
 
 test('watch and fast open a five minute window', () => {

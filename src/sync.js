@@ -6,6 +6,7 @@ const { NoGhError } = require('./accounts');
 const FAST_WINDOW_MS = 300000;
 const RATE_FLOOR = 200;
 const NO_GH_RETRY_MS = 30000;
+const MIN_RATE_WAIT_MS = 5000;
 const PROBABLY_RUNNING = new Set(['PENDING', 'EXPECTED']);
 
 const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
@@ -19,6 +20,7 @@ function rateError(message, retryAfterMs) {
 function createSync({ accounts, client, tracker, now }) {
   const caches = new Map();   // login -> Map(pr id -> { key, pr })
   const watched = new Set();  // urls to keep fetching until a list returns them
+  const lastSeen = new Map(); // watched url -> last Pr fetched, kept in the rows when a fetch is skipped or fails
   let fastUntil = 0;
 
   const cacheFor = (login) => { if (!caches.has(login)) caches.set(login, new Map()); return caches.get(login); };
@@ -83,13 +85,14 @@ function createSync({ accounts, client, tracker, now }) {
     const results = [];   // { login, prs, items }
     const rates = [];
     let failure = null;
+    const fresh = new Set();   // watched urls fetched this round
     try {
       for (const login of logins) {
         const r = await syncAccount(login);
         if (!r) continue;
         results.push({ login, prs: r.prs });
         rates.push(...r.rates);
-        for (const i of r.items) watched.delete(i.url);
+        for (const i of r.items) { watched.delete(i.url); lastSeen.delete(i.url); }
       }
       if (watched.size && results.length) {
         const first = results[0];
@@ -101,23 +104,29 @@ function createSync({ accounts, client, tracker, now }) {
               if (e && (e.kind === 'throttle' || e.kind === 'offline')) throw e;
               continue;
             }
-            if (pr) first.prs = [...first.prs, { ...pr, account: first.login }];
-            else watched.delete(url);
+            if (pr) { pr = { ...pr, account: first.login }; lastSeen.set(url, pr); fresh.add(url); first.prs = [...first.prs, pr]; }
+            else { watched.delete(url); lastSeen.delete(url); }
           }
         }
       }
     } catch (e) { failure = e; }
 
+    // A watched row goes only when its PR is gone or listed; a skipped or failed fetch keeps the last copy.
+    if (results.length) {
+      for (const url of watched) {
+        if (!fresh.has(url) && lastSeen.has(url)) results[0].prs = [...results[0].prs, lastSeen.get(url)];
+      }
+    }
     for (const r of results) { tracker.apply(r.login, r.prs); tracker.clearNote(r.login); }
     if (failure) throw failure;
 
-    const known = rates.filter((r) => r && r.resetAt);
+    const known = rates.filter((r) => r && r.resetAt && Number.isFinite(Date.parse(r.resetAt)));
     if (known.length) {
       const low = known.reduce((a, b) => (b.remaining < a.remaining ? b : a));
       if (low.remaining < RATE_FLOOR) {
         const reset = Date.parse(low.resetAt);
         const d = new Date(reset);
-        throw rateError(`GitHub rate limit, resuming at ${pad(d.getHours())}:${pad(d.getMinutes())}`, Math.max(0, reset - now()));
+        throw rateError(`GitHub rate limit, resuming at ${pad(d.getHours())}:${pad(d.getMinutes())}`, Math.max(MIN_RATE_WAIT_MS, reset - now()));
       }
     }
   }
