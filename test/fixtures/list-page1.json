@@ -1,0 +1,57 @@
+{
+  "data": {
+    "search": {
+      "pageInfo": {
+        "hasNextPage": true,
+        "endCursor": "CUR1"
+      },
+      "nodes": [
+        {
+          "id": "PR_1",
+          "url": "https://github.com/acme/widgets/pull/1",
+          "updatedAt": "2026-01-01T00:00:00Z",
+          "headRefOid": "oid1",
+          "mergeable": "MERGEABLE",
+          "mergeStateStatus": "CLEAN",
+          "isDraft": false,
+          "reviewDecision": null,
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "statusCheckRollup": {
+                    "state": "SUCCESS"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "PR_2",
+          "url": "https://github.com/acme/api/pull/2",
+          "updatedAt": "2026-01-02T00:00:00Z",
+          "headRefOid": "oid2",
+          "mergeable": "UNKNOWN",
+          "mergeStateStatus": "UNKNOWN",
+          "isDraft": true,
+          "reviewDecision": "REVIEW_REQUIRED",
+          "commits": {
+            "nodes": [
+              {
+                "commit": {
+                  "statusCheckRollup": null
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "rateLimit": {
+      "remaining": 4990,
+      "resetAt": "2026-01-01T01:00:00Z",
+      "cost": 1
+    }
+  }
+}

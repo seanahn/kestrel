@@ -1,0 +1,98 @@
+{
+  "data": {
+    "nodes": [
+      {
+        "id": "PR_7",
+        "number": 7,
+        "title": "Add widget",
+        "url": "https://github.com/acme/widgets/pull/7",
+        "isDraft": false,
+        "updatedAt": "2026-01-05T00:00:00Z",
+        "repository": {
+          "nameWithOwner": "acme/widgets",
+          "squashMergeAllowed": true,
+          "mergeCommitAllowed": false,
+          "rebaseMergeAllowed": true
+        },
+        "mergeable": "MERGEABLE",
+        "mergeStateStatus": "BLOCKED",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "headRefOid": "head7",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": {
+                  "contexts": {
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "test",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "StatusContext",
+                        "context": "ci/legacy",
+                        "state": "PENDING"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "nodes": [
+            {
+              "author": {
+                "login": "review-bot"
+              },
+              "body": "looks fine",
+              "commit": {
+                "oid": "head7"
+              },
+              "submittedAt": "2026-01-05T00:01:00Z"
+            },
+            {
+              "author": null,
+              "body": "",
+              "commit": null,
+              "submittedAt": "2026-01-05T00:02:00Z"
+            }
+          ]
+        },
+        "reviewThreads": {
+          "nodes": [
+            {
+              "isResolved": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "login": "a"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "comments": {
+                "nodes": []
+              }
+            },
+            {
+              "isResolved": false,
+              "comments": {
+                "nodes": []
+              }
+            }
+          ]
+        }
+      },
+      null
+    ]
+  }
+}
