@@ -1,0 +1,11 @@
+.git/**
+.gitignore
+.env
+.superpowers/**
+test/**
+*.vsix
+Makefile
+docs/**
+package-lock.json
+node_modules/**
+.private-words

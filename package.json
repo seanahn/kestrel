@@ -1,0 +1,104 @@
+{
+  "name": "kestrel",
+  "displayName": "kestrel",
+  "description": "Your open GitHub pull requests in a bottom-panel tab: review state, checks, and one-click merge.",
+  "version": "0.1.0",
+  "publisher": "seanahn",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seanahn/kestrel"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "kestrel",
+          "title": "PRs",
+          "icon": "media/pr.svg"
+        }
+      ]
+    },
+    "views": {
+      "kestrel": [
+        {
+          "type": "webview",
+          "id": "kestrel.prs",
+          "name": "PRs"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kestrel.refresh",
+        "title": "kestrel: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "kestrel.watch",
+        "title": "kestrel: Watch"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "kestrel.watch",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "kestrel.refresh",
+          "when": "view == kestrel.prs",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "kestrel",
+      "properties": {
+        "kestrel.accounts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "GitHub accounts (as known to the gh CLI) whose pull requests to list. Empty: every account gh is signed in to."
+        },
+        "kestrel.mergeMethod": {
+          "type": "string",
+          "enum": [
+            "squash",
+            "merge",
+            "rebase"
+          ],
+          "default": "squash",
+          "description": "How the Merge button merges a pull request."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "for f in src/*.js media/*.js test/*.js; do [ -e \"$f\" ] || continue; node --check \"$f\" || exit 1; done",
+    "test": "node --test --test-force-exit --test-timeout=20000 test/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  },
+  "icon": "media/listing-icon.png",
+  "keywords": [
+    "github",
+    "pull request",
+    "review"
+  ]
+}
