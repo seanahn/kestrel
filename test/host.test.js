@@ -110,3 +110,20 @@ test('deactivate stops the poller: no more timers fire a round', async () => {
   await settle();
   assert.strictEqual(w.listed.length, n);
 });
+
+test('hidden urls load from globalState and are written back on change', async () => {
+  ui.out.length = 0; ui.commands = {};
+  const w = world();
+  const ctx = context();
+  const u1 = 'https://github.com/acme/widgets/pull/1';
+  await ctx.globalState.update('kestrel.hidden', [u1]);
+  const api = ext.activate(ctx, { run: w.run, client: w.client, timers: w.timers, now: () => w.now });
+  await settle(); await settle();
+  assert.strictEqual(api.tracker.rows().find((r) => r.pr.url === u1).hidden, true);
+  assert.strictEqual(api.tracker.badge(), 1);
+  api.tracker.hide('https://github.com/acme/api/pull/2');
+  assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), [u1, 'https://github.com/acme/api/pull/2']);
+  api.tracker.unhide(u1);
+  assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), ['https://github.com/acme/api/pull/2']);
+  ext.deactivate();
+});

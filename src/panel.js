@@ -35,6 +35,10 @@ class PanelProvider {
   onMessage(m) {
     if (!m || typeof m.type !== 'string') return;
     if (m.type === 'ready') { this.render(); return; }
+    if (m.type === 'hide' || m.type === 'unhide') {
+      if (typeof m.url === 'string') this.tracker[m.type](m.url);
+      return;
+    }
     const row = this.tracker.rows().find((r) => r.pr.url === m.url);
     if (!row) return;
     const { state } = row;
@@ -80,6 +84,7 @@ class PanelProvider {
         highlight: !!r.highlight,
         busy: !!this.merger.busy(r.pr.url),
         error: r.error || null,
+        hidden: !!r.hidden,
       })),
     });
   }

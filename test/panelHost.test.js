@@ -48,7 +48,7 @@ test('ready posts render with rows, in tracker order, and no prompt text', () =>
   assert.deepStrictEqual(m.notes, []);
   assert.strictEqual(m.rows.length, 2);
   const r = m.rows.find((x) => x.url === U(1));
-  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'dot', 'error', 'extraText', 'highlight', 'ref', 'text', 'title', 'url'].sort());
+  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'dot', 'error', 'extraText', 'hidden', 'highlight', 'ref', 'text', 'title', 'url'].sort());
   assert.strictEqual(r.ref, 'acme/widgets#1');
   assert.strictEqual(r.actionKind, 'prompt');
   assert.strictEqual(r.text, 'conflicts');
@@ -145,4 +145,16 @@ test('render() before a view exists does nothing', () => {
   const { PanelProvider } = require('../src/panel');
   const tracker = createTracker({ now: () => 0 });
   new PanelProvider({ vscode, extensionUri: vscode.Uri.file('/ext'), tracker, handoff: {}, merger: {} }).render();
+});
+
+test('hide and unhide messages call the tracker; rows carry hidden', () => {
+  const { view, tracker, last } = setup([pr(1), pr(2)]);
+  view.webview._receive({ type: 'hide', url: U(1) });
+  assert.deepStrictEqual(tracker.hiddenUrls(), [U(1)]);
+  assert.strictEqual(last().rows.find((x) => x.url === U(1)).hidden, true);
+  assert.strictEqual(last().rows.find((x) => x.url === U(2)).hidden, false);
+  assert.strictEqual(view.badge.value, 1);
+  view.webview._receive({ type: 'unhide', url: U(1) });
+  assert.deepStrictEqual(tracker.hiddenUrls(), []);
+  assert.strictEqual(last().rows.find((x) => x.url === U(1)).hidden, false);
 });

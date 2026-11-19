@@ -6,6 +6,7 @@
   const SEEN_MS = 4000;
   let state = { visible: true, notes: [], multiAccount: false, rows: [] };
   let selectedUrl = null;
+  let showHidden = false; // page-local: draw hidden rows, dimmed
   const timers = new Map(); // url -> pending "seen" timer
 
   const el = (tag, cls, text) => { const e = d.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -27,12 +28,16 @@
     }
   }
 
+  const hiddenCount = () => state.rows.filter((r) => r.hidden).length;
+  const shown = () => state.rows.filter((r) => showHidden || !r.hidden);
+
   function render() {
     const nodes = [];
+    const list = shown();
     for (const n of state.notes) nodes.push(el('div', 'note', n));
-    if (!state.rows.length) nodes.push(el('div', 'empty', 'No open pull requests.'));
-    for (const r of state.rows) {
-      const line = el('div', 'row' + (r.highlight ? ' fresh' : '') + (r.url === selectedUrl ? ' selected' : ''));
+    if (!list.length) nodes.push(el('div', 'empty', 'No open pull requests.'));
+    for (const r of list) {
+      const line = el('div', 'row' + (r.highlight ? ' fresh' : '') + (r.hidden ? ' hidden' : '') + (r.url === selectedUrl ? ' selected' : ''));
       line.setAttribute('role', 'option'); line.dataset.url = r.url;
       const main = el('div', 'line');
       main.append(el('span', 'dot ' + r.dot), el('span', 'ref', r.ref), el('span', 'title', r.title));
@@ -42,12 +47,20 @@
       main.append(r.actionKind && !r.busy ? link('action', label, () => post('action', r.url)) : el('span', 'action', label));
       if (r.extraText) main.append(link('extra', r.extraText, () => post('extra', r.url)));
       main.append(link('open', '↗', () => post('open', r.url)));
+      main.append(r.hidden ? link('unhide', 'unhide', () => post('unhide', r.url)) : link('hide', '×', () => post('hide', r.url)));
+      if (!r.hidden) main.lastChild.setAttribute('title', 'Hide this PR');
       line.append(main);
       if (r.error) line.append(el('div', 'error', r.error));
       line.addEventListener('mouseenter', () => { if (!state.visible && r.highlight) post('seen', r.url); });
       line.addEventListener('click', () => { selectedUrl = r.url; mark(); });
       nodes.push(line);
     }
+    const n = hiddenCount();
+    if (n > 0) nodes.push(link('toggle-hidden', `${showHidden ? 'Hide' : 'Show'} ${n} hidden`, () => {
+      showHidden = !showHidden;
+      if (!showHidden && state.rows.some((r) => r.url === selectedUrl && r.hidden)) selectedUrl = null;
+      render();
+    }));
     root.replaceChildren(...nodes);
     syncSeen();
   }
@@ -60,25 +73,28 @@
     const m = e.data;
     if (!m || m.type !== 'render') return;
     state = { visible: !!m.visible, notes: m.notes || [], multiAccount: !!m.multiAccount, rows: m.rows || [] };
-    if (selectedUrl && !state.rows.some((r) => r.url === selectedUrl)) selectedUrl = null;
+    if (selectedUrl && !shown().some((r) => r.url === selectedUrl)) selectedUrl = null;
     render();
   });
 
   d.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const i = state.rows.findIndex((r) => r.url === selectedUrl);
+    const list = shown();
+    const i = list.findIndex((r) => r.url === selectedUrl);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      if (!state.rows.length) return;
-      const next = e.key === 'ArrowDown' ? Math.min(i + 1, state.rows.length - 1) : Math.max(i - 1, 0);
-      selectedUrl = state.rows[next].url; mark();
+      if (!list.length) return;
+      const next = e.key === 'ArrowDown' ? Math.min(i + 1, list.length - 1) : Math.max(i - 1, 0);
+      selectedUrl = list[next].url; mark();
       const n = root.querySelector('.row.selected'); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
       e.preventDefault();
     } else if (i >= 0 && e.key === 'Enter') {
-      const r = state.rows[i];
+      const r = list[i];
       if (r.actionKind && !r.busy) post('action', r.url);
       e.preventDefault();
     } else if (i >= 0 && e.key === 'o') {
-      post('open', state.rows[i].url);
+      post('open', list[i].url);
+    } else if (i >= 0 && e.key === 'h') {
+      post(list[i].hidden ? 'unhide' : 'hide', list[i].url);
     }
   });
 

@@ -16,7 +16,7 @@ function page() {
   const key = (k) => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
   return { w, d: w.document, posted, send, key };
 }
-const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null }, o);
+const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null, hidden: false }, o);
 const render = (o) => Object.assign({ type: 'render', visible: true, notes: [], multiAccount: false, rows: [] }, o);
 const U = (n) => `https://github.com/acme/widgets/pull/${n}`;
 
@@ -147,4 +147,63 @@ test('notes render above the list; empty state', () => {
 test('CSS uses theme variables only', () => {
   assert.ok(!/#[0-9a-fA-F]{3,6}\b|rgb\(/.test(CSS), 'no literal colors');
   assert.ok(/\.row\.fresh/.test(CSS));
+});
+
+test('x posts hide', () => {
+  const p = page();
+  p.send(render({ rows: [row()] }));
+  const x = p.d.querySelector('.hide');
+  assert.strictEqual(x.getAttribute('title'), 'Hide this PR');
+  x.click();
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'hide', url: U(1) }]);
+  assert.ok(/\.row:hover[^{]*\.hide|\.row\.selected[^{]*\.hide/.test(CSS));
+});
+
+test('hidden rows not drawn by default', () => {
+  const p = page();
+  p.send(render({ rows: [row({ hidden: true }), row({ url: U(2), ref: 'acme/widgets#2' })] }));
+  assert.deepStrictEqual([...p.d.querySelectorAll('.row')].map((r) => r.dataset.url), [U(2)]);
+  assert.strictEqual(p.d.querySelector('.toggle-hidden').textContent, 'Show 1 hidden');
+});
+
+test('Show N hidden toggles and shows unhide', () => {
+  const p = page();
+  p.send(render({ rows: [row({ hidden: true }), row({ url: U(2), ref: 'acme/widgets#2' })] }));
+  p.d.querySelector('.toggle-hidden').click();
+  const rows = [...p.d.querySelectorAll('.row')];
+  assert.strictEqual(rows.length, 2);
+  const h = rows.find((r) => r.dataset.url === U(1));
+  assert.ok(h.classList.contains('hidden'));
+  assert.strictEqual(h.querySelector('.hide'), null);
+  assert.strictEqual(h.querySelector('.unhide').textContent, 'unhide');
+  assert.strictEqual(p.d.querySelector('.toggle-hidden').textContent, 'Hide 1 hidden');
+  h.querySelector('.unhide').click();
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'unhide', url: U(1) }]);
+  // the toggle survives a re-render
+  p.send(render({ rows: [row({ hidden: true })] }));
+  assert.strictEqual(p.d.querySelectorAll('.row').length, 1);
+  p.d.querySelector('.toggle-hidden').click();
+  assert.strictEqual(p.d.querySelectorAll('.row').length, 0);
+  assert.strictEqual(p.d.querySelector('.toggle-hidden').textContent, 'Show 1 hidden');
+});
+
+test('h key hides selected, and unhides a shown hidden row', () => {
+  const p = page();
+  p.send(render({ rows: [row(), row({ url: U(2), ref: 'acme/widgets#2', hidden: true })] }));
+  p.key('h');
+  assert.deepStrictEqual(p.posted.slice(1), []);
+  p.key('ArrowDown'); p.key('h');
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'hide', url: U(1) }]);
+  p.d.querySelector('.toggle-hidden').click();
+  p.key('ArrowDown'); p.key('h');
+  assert.deepStrictEqual(p.posted.slice(2), [{ type: 'unhide', url: U(2) }]);
+});
+
+test('empty state with all hidden', () => {
+  const p = page();
+  p.send(render({ rows: [row({ hidden: true })] }));
+  assert.strictEqual(p.d.querySelector('.empty').textContent, 'No open pull requests.');
+  assert.strictEqual(p.d.querySelector('.toggle-hidden').textContent, 'Show 1 hidden');
+  p.d.querySelector('.toggle-hidden').click();
+  assert.strictEqual(p.d.querySelector('.empty'), null);
 });

@@ -23,6 +23,9 @@ function activate(context, deps = {}) {
   const accounts = createAccounts({ run: deps.run || defaultRun, allowed: () => cfg().get('accounts', []) });
   const client = deps.client || createClient(deps.request ? { request: deps.request } : {});
   const tracker = createTracker({ now });
+  const stored = context.globalState ? context.globalState.get('kestrel.hidden', []) : [];
+  tracker.setHidden(Array.isArray(stored) ? stored : []);
+  tracker.onHiddenChange((urls) => { if (context.globalState) context.globalState.update('kestrel.hidden', urls); });
   const sync = createSync({
     accounts, client, tracker, now,
     onRound: ({ login, count, cost }) => log(`${new Date(now()).toISOString()} ${login}: ${count} PRs, cost ${cost}`),

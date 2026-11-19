@@ -21,6 +21,7 @@ const draft = { isDraft: true };
 const T0 = Date.parse('2026-03-01T00:00:00Z');
 const make = () => { const clock = { t: T0 }; return { clock, tr: createTracker({ now: () => clock.t }) }; };
 const urls = (tr) => tr.rows().map((r) => r.pr.number);
+const U = (n) => `https://github.com/acme/widgets/pull/${n}`;
 const row = (tr, n) => tr.rows().find((r) => r.pr.number === n);
 
 test('first apply is quiet', () => {
@@ -186,4 +187,88 @@ test('onChange fires once per mutation that changed something', () => {
   tr.remove(pr(1).url); assert.strictEqual(n, 8);
   tr.remove(pr(1).url); assert.strictEqual(n, 8);
   tr.drop('octo-dev', 'gone'); assert.strictEqual(n, 9);
+});
+
+test('hide removes from badge', () => {
+  const { tr } = make();
+  tr.apply('octo-dev', [pr(1, conflict), pr(2)]);
+  assert.strictEqual(tr.badge(), 2);
+  tr.hide(U(1));
+  assert.strictEqual(tr.badge(), 1);
+  assert.strictEqual(row(tr, 1).hidden, true);
+  assert.strictEqual(row(tr, 2).hidden, false);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+  tr.unhide(U(1));
+  assert.strictEqual(tr.badge(), 2);
+  assert.strictEqual(row(tr, 1).hidden, false);
+});
+
+test('hidden row never highlights on state change', () => {
+  const { tr, clock } = make();
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.hide(U(1));
+  clock.t += 1000;
+  tr.apply('octo-dev', [pr(1, conflict), pr(2, conflict)]);
+  assert.strictEqual(row(tr, 1).highlight, false);
+  assert.strictEqual(row(tr, 2).highlight, true);
+  assert.strictEqual(row(tr, 1).changedAt, clock.t);
+});
+
+test('hiding a highlighted row clears its highlight', () => {
+  const { tr } = make();
+  tr.apply('octo-dev', [pr(1)]);
+  tr.apply('octo-dev', [pr(1, conflict)]);
+  assert.strictEqual(row(tr, 1).highlight, true);
+  tr.hide(U(1));
+  assert.strictEqual(row(tr, 1).highlight, false);
+});
+
+test('apply prunes hidden url when PR gone', () => {
+  const { tr } = make();
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.hide(U(1));
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), []);
+});
+
+test('drop keeps hidden url', () => {
+  const { tr } = make();
+  tr.apply('octo-dev', [pr(1)]);
+  tr.hide(U(1));
+  tr.drop('octo-dev', 'login expired');
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+  tr.fail('octo-dev', 'x');
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+});
+
+test('remove prunes', () => {
+  const { tr } = make();
+  tr.apply('octo-dev', [pr(1)]);
+  tr.hide(U(1));
+  tr.remove(U(1));
+  assert.deepStrictEqual(tr.hiddenUrls(), []);
+});
+
+test('setHidden fires no onChange', () => {
+  const { tr } = make();
+  let n = 0, h = 0;
+  tr.onChange(() => n++); tr.onHiddenChange(() => h++);
+  tr.setHidden([U(1)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+  assert.deepStrictEqual([n, h], [0, 0]);
+  tr.apply('octo-dev', [pr(1)]);
+  assert.strictEqual(row(tr, 1).hidden, true);
+});
+
+test('onHiddenChange reports urls; hide/unhide fire onChange once, no-ops never', () => {
+  const { tr } = make();
+  const seen = []; let n = 0;
+  tr.onChange(() => n++); tr.onHiddenChange((u) => seen.push(u));
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  n = 0;
+  tr.hide(U(1)); tr.hide(U(1)); tr.hide(U(2)); tr.unhide(U(1)); tr.unhide(U(1));
+  assert.strictEqual(n, 3);
+  assert.deepStrictEqual(seen, [[U(1)], [U(1), U(2)], [U(2)]]);
+  tr.apply('octo-dev', [pr(1)]);
+  assert.deepStrictEqual(seen[3], []);
 });

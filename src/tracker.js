@@ -9,6 +9,9 @@ function createTracker({ now }) {
   const notes = new Map();      // account -> note, in insertion order
   let globalNote = null;
   const listeners = [];
+  const hidden = new Set();     // urls the user hid (design 101, "Hiding a PR")
+  const hiddenListeners = [];
+  const emitHidden = () => hiddenListeners.forEach((fn) => fn([...hidden]));
   const emit = (changed) => { if (changed) listeners.forEach((fn) => fn()); };
 
   const sameRow = (a, b) => JSON.stringify([a.pr, a.state]) === JSON.stringify([b.pr, b.state])
@@ -27,19 +30,21 @@ function createTracker({ now }) {
       if (!old) {
         next = first
           ? { pr, state, changedAt: Date.parse(pr.updatedAt), highlight: false, error: null }
-          : { pr, state, changedAt: now(), highlight: state.actionable, error: null };
+          : { pr, state, changedAt: now(), highlight: state.actionable && !hidden.has(pr.url), error: null };
       } else if (old.state.key !== state.key) {
-        next = { pr, state, changedAt: now(), highlight: state.actionable, error: null };
+        next = { pr, state, changedAt: now(), highlight: state.actionable && !hidden.has(pr.url), error: null };
       } else {
         next = { pr, state, changedAt: old.changedAt, highlight: old.highlight, error: null };
       }
       if (!old || !sameRow(old, next)) changed = true;
       rows.set(pr.url, next);
     }
+    let pruned = false;
     for (const [url, r] of rows) {
-      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; }
+      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; pruned = hidden.delete(url) || pruned; }
     }
     emit(changed);
+    if (pruned) emitHidden();
   }
 
   function setNote(account, note) {
@@ -67,7 +72,29 @@ function createTracker({ now }) {
     emit(true);
   }
 
-  function remove(url) { emit(rows.delete(url)); }
+  function remove(url) {
+    const had = rows.delete(url);
+    const pruned = hidden.delete(url);
+    emit(had);
+    if (pruned) emitHidden();
+  }
+
+  function setHidden(urls) { hidden.clear(); for (const u of urls || []) hidden.add(String(u)); }
+
+  function hide(url) {
+    if (hidden.has(url)) return;
+    hidden.add(url);
+    const r = rows.get(url);
+    if (r && r.highlight) rows.set(url, { ...r, highlight: false });
+    emit(true);
+    emitHidden();
+  }
+
+  function unhide(url) {
+    if (!hidden.delete(url)) return;
+    emit(true);
+    emitHidden();
+  }
 
   function markSeen(url) {
     const r = rows.get(url);
@@ -85,12 +112,14 @@ function createTracker({ now }) {
   }
 
   return {
-    apply, fail, drop, clearNote, setGlobalNote, remove, markSeen, setError,
-    rows: () => [...rows.values()].sort((a, b) => b.changedAt - a.changedAt || (a.pr.url < b.pr.url ? -1 : a.pr.url > b.pr.url ? 1 : 0)),
-    badge: () => [...rows.values()].filter((r) => r.state.actionable).length,
+    apply, fail, drop, clearNote, setGlobalNote, remove, markSeen, setError, setHidden, hide, unhide,
+    rows: () => [...rows.values()].map((r) => ({ ...r, hidden: hidden.has(r.pr.url) })).sort((a, b) => b.changedAt - a.changedAt || (a.pr.url < b.pr.url ? -1 : a.pr.url > b.pr.url ? 1 : 0)),
+    badge: () => [...rows.values()].filter((r) => r.state.actionable && !hidden.has(r.pr.url)).length,
     notes: () => [...(globalNote ? [globalNote] : []), ...notes.values()],
     anyRunning: () => [...rows.values()].some((r) => r.state.rule === 6),
+    hiddenUrls: () => [...hidden],
     onChange: (fn) => { listeners.push(fn); },
+    onHiddenChange: (fn) => { hiddenListeners.push(fn); },
   };
 }
 
