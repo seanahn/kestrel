@@ -147,3 +147,12 @@ test('merge sends mergePullRequest and maps errors to refused', async () => {
   const h = fake(fail(401));
   await assert.rejects(createClient({ request: h.request }).merge('tok', { id: 'PR_7', method: 'MERGE', expectedHeadOid: 'x' }), kindOf('auth'));
 });
+
+test('a 2xx without JSON data is an http error, never an empty success', async () => {
+  const bad = [ok(null), ok({ data: null }), ok({})];
+  for (const r of bad) {
+    await assert.rejects(createClient({ request: fake(r).request }).listPrs('tok'), kindOf('http', { status: 200 }));
+  }
+  await assert.rejects(createClient({ request: fake(ok(null)).request }).detailPrs('tok', ['PR_1']), kindOf('http', { status: 200 }));
+  await assert.rejects(createClient({ request: fake(ok({ data: null })).request }).detailPrs('tok', ['PR_1']), kindOf('http', { status: 200 }));
+});

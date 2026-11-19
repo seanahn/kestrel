@@ -160,7 +160,10 @@ function createClient({ request = defaultRequest } = {}) {
     if (json && Array.isArray(json.errors) && json.errors.length) {
       throw new GitHubError(errorKind, String(json.errors[0].message || 'GitHub returned an error'), { status });
     }
-    return (json && json.data) || {};
+    if (!json || typeof json.data !== 'object' || json.data === null) {
+      throw new GitHubError('http', 'GitHub returned an unreadable response', { status });
+    }
+    return json.data;
   }
 
   /** Folds per-request rateLimit blocks: last remaining/resetAt, summed cost. */
