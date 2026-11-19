@@ -160,10 +160,18 @@ PR:
 - When anything is hidden, a line at the bottom reads "Show N hidden".
   Clicking it shows the hidden rows dimmed, each with an **unhide** link in
   place of the ×, and the line becomes "Hide N hidden".
-- A URL leaves the hidden list once the PR is gone: merged or closed,
-  meaning a complete search no longer returns it, or merged from the
-  panel. A PR whose account is dropped (login expired) stays hidden.
-  *(builder's call)*
+- A URL leaves the hidden list once the PR is gone: merged from the
+  panel, or confirmed merged or closed. A PR whose account is dropped
+  (login expired) stays hidden. *(builder's call)*
+- **Missing from one search isn't "gone"** (Sean, 2026-11-19, after hidden
+  PRs came back). GitHub's search sometimes leaves an open PR out of a
+  round. So a hidden PR that a successful list doesn't return keeps its
+  hide. It leaves the hidden list only when one of these happens:
+  - fetching it by URL shows it merged or closed;
+  - it has been missing from every successful list for 24 hours.
+
+  While missing, its row is dropped as before, and the hide is kept. When
+  a later list returns it, it shows as hidden again.
 
 ## Where the data comes from
 

@@ -25,7 +25,7 @@ function activate(context, deps = {}) {
   const tracker = createTracker({ now });
   const stored = context.globalState ? context.globalState.get('kestrel.hidden', []) : [];
   tracker.setHidden(Array.isArray(stored) ? stored : []);
-  tracker.onHiddenChange((urls) => { if (context.globalState) context.globalState.update('kestrel.hidden', urls); });
+  tracker.onHiddenChange((urls, entries) => { if (context.globalState) context.globalState.update('kestrel.hidden', entries); });
   const sync = createSync({
     accounts, client, tracker, now,
     onRound: ({ login, count, cost }) => log(`${new Date(now()).toISOString()} ${login}: ${count} PRs, cost ${cost}`),

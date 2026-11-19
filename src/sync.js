@@ -8,6 +8,7 @@ const RATE_FLOOR = 200;
 const NO_GH_RETRY_MS = 30000;
 const MIN_RATE_WAIT_MS = 5000;
 const PROBABLY_RUNNING = new Set(['PENDING', 'EXPECTED']);
+const MISSING_FETCHES = 5;   // hidden-but-missing PRs fetched by url per round
 const PR_URL = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/;
 
 const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
@@ -22,6 +23,7 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
   const caches = new Map();   // login -> Map(pr id -> { key, pr })
   const watched = new Set();  // urls to keep fetching until a list returns them, the PR closes, or it is merged here
   const lastSeen = new Map(); // watched url -> last Pr fetched, kept in the rows when a fetch is skipped or fails
+  let missingCursor = 0;      // rotates through the hidden-but-missing urls so every one gets its turn
   let fastUntil = 0;
   let logins = [];            // the account list, reused until a relist
   let relist = true;          // list accounts before the next round: start, Refresh, settings, after a drop or no gh
@@ -96,6 +98,26 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
     relist = false;
   }
 
+  /** A hidden PR that a successful list left out is fetched by url (a few per round); merged or closed means it's gone. */
+  async function checkHiddenMissing(results) {
+    const okLogins = new Set(results.map((r) => r.login));
+    const missing = tracker.hiddenMissing().filter((m) => !m.account || okLogins.has(m.account));
+    if (!missing.length || !results.length) return;
+    const start = missingCursor % missing.length;
+    const batch = [...missing.slice(start), ...missing.slice(0, start)].slice(0, MISSING_FETCHES);
+    missingCursor = start + batch.length;
+    for (const m of batch) {
+      const token = await accounts.token(m.account && okLogins.has(m.account) ? m.account : results[0].login).catch(() => null);
+      if (!token) continue;
+      let pr = null;
+      try { pr = await client.prByUrl(token, m.url); } catch (e) {
+        if (e && (e.kind === 'throttle' || e.kind === 'offline' || e.kind === 'rate')) throw e;
+        continue;
+      }
+      if (pr && (pr.state === 'MERGED' || pr.state === 'CLOSED')) tracker.unhide(m.url);
+    }
+  }
+
   async function run() {
     if (relist) await listAccounts();
 
@@ -141,6 +163,9 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
       if (r) r.prs = [...r.prs, seen];
     }
     for (const r of results) { tracker.apply(r.login, r.prs); tracker.clearNote(r.login); }
+    if (!failure) {
+      try { await checkHiddenMissing(results); } catch (e) { failure = e; }
+    }
     if (failure) throw failure;
 
     const known = rates.filter((r) => r && r.resetAt && Number.isFinite(Date.parse(r.resetAt)));

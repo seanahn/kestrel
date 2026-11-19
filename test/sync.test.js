@@ -366,3 +366,49 @@ test('a rate error from GitHub is rethrown to the poller, rows kept', async () =
   await assert.rejects(sync.run(), (e) => e.kind === 'rate' && e.retryAfterMs === 9000 && !e.local);
   assert.deepStrictEqual(nums(tracker), [1]);
 });
+
+const H = 3600000;
+const hiddenGone = async (byUrl, extra = {}) => {
+  const ctx = setup({ lists: { 'octo-dev': [item(1), item(2)] }, byUrl, ...extra });
+  await ctx.sync.run();
+  ctx.tracker.hide(item(1).url);
+  ctx.state.lists['octo-dev'] = [item(2)];
+  return ctx;
+};
+
+test('a hidden PR missing from a list and fetched by URL as MERGED or CLOSED leaves the hidden list', async () => {
+  for (const st of ['MERGED', 'CLOSED']) {
+    const { sync, tracker, calls } = await hiddenGone({ [item(1).url]: item(1, { state: st }) });
+    await sync.run();
+    assert.deepStrictEqual(calls.byUrl.map((c) => c[1]), [item(1).url], st);
+    assert.deepStrictEqual(tracker.hiddenUrls(), [], st);
+  }
+});
+
+test('a hidden PR missing from a list but still OPEN by URL keeps its hide', async () => {
+  const { sync, tracker } = await hiddenGone({ [item(1).url]: item(1) });
+  await sync.run(); await sync.run();
+  assert.deepStrictEqual(tracker.hiddenUrls(), [item(1).url]);
+  assert.deepStrictEqual(nums(tracker), [2], 'the row is not shown from the URL fetch');
+});
+
+test('a failed URL fetch of a missing hidden PR keeps the hide', async () => {
+  const { sync, tracker, state } = await hiddenGone({});
+  state.byUrlError = new Error('boom');
+  await sync.run();
+  assert.deepStrictEqual(tracker.hiddenUrls(), [item(1).url]);
+});
+
+test('at most five missing hidden PRs are fetched by URL per round', async () => {
+  const items = [1, 2, 3, 4, 5, 6, 7].map((n) => item(n));
+  const { sync, tracker, calls, state } = setup({ lists: { 'octo-dev': items } });
+  await sync.run();
+  for (const i of items) tracker.hide(i.url);
+  state.lists['octo-dev'] = [];
+  await sync.run();
+  await sync.run();
+  const per = calls.byUrl.length;
+  assert.ok(per >= 5 && per <= 10, `calls ${per}`);
+  const first = new Set(calls.byUrl.slice(0, 5).map((c) => c[1]));
+  assert.strictEqual(first.size, 5);
+});

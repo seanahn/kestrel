@@ -72,6 +72,14 @@ commits, `1848b92` and `683e04b`, were fast-forwarded onto perch's
 
 - No PR, by Sean's choice: master was pushed straight to github.com/seanahn/kestrel (public) on 2026-11-19. The perch change went straight to perch's main the same day (5597082..683e04b).
 
+## 0.1.2
+
+- A hidden PR stays hidden when one search round misses it. It leaves the
+  hidden list only when fetched by URL as merged or closed (up to 5 per
+  round, rotating), merged from the panel, or missing from every successful
+  list of its account for 24 hours. `kestrel.hidden` now stores
+  `{ url, missingSince, account }`; the old array of urls still loads.
+
 ## Known gaps
 
 Parked or deferred on purpose; none blocks 0.1.0.

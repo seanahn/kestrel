@@ -3,6 +3,8 @@
 // an in-memory store that turns each account's poll results into ordered rows, events, a badge and notes.
 const { rowState } = require('./model');
 
+const MISSING_MS = 24 * 3600000;   // a hidden PR missing from every successful list this long loses its hide
+
 function createTracker({ now }) {
   const rows = new Map();       // pr.url -> Row
   const applied = new Set();    // accounts that have had a successful apply
@@ -10,9 +12,10 @@ function createTracker({ now }) {
   let globalNote = null;       // sync's own note (no gh)
   let pollNote = null;         // the poller's note (throttled, offline, rate limit)
   const listeners = [];
-  const hidden = new Set();     // urls the user hid (design 101, "Hiding a PR")
+  const hidden = new Map();     // url -> { missingSince, account }: what the user hid (design 101, "Hiding a PR")
   const hiddenListeners = [];
-  const emitHidden = () => hiddenListeners.forEach((fn) => fn([...hidden]));
+  const hiddenEntries = () => [...hidden].map(([url, h]) => ({ url, missingSince: h.missingSince, account: h.account }));
+  const emitHidden = () => hiddenListeners.forEach((fn) => fn([...hidden.keys()], hiddenEntries()));
   const emit = (changed) => { if (changed) listeners.forEach((fn) => fn()); };
 
   const sameRow = (a, b) => JSON.stringify([a.pr, a.state]) === JSON.stringify([b.pr, b.state])
@@ -42,7 +45,17 @@ function createTracker({ now }) {
     }
     let pruned = false;
     for (const [url, r] of rows) {
-      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; pruned = hidden.delete(url) || pruned; }
+      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; }
+    }
+    // A hidden PR a successful list doesn't return keeps its hide; only 24 hours of absence drops it.
+    for (const [url, h] of hidden) {
+      if (seen.has(url)) {
+        const acct = rows.get(url).pr.account;
+        if (h.missingSince !== null || h.account !== acct) { hidden.set(url, { missingSince: null, account: acct }); pruned = true; }
+      } else if (h.account === null || h.account === account) {
+        if (h.missingSince === null) { hidden.set(url, { ...h, missingSince: now() }); pruned = true; }
+        else if (now() - h.missingSince >= MISSING_MS) { hidden.delete(url); pruned = true; }
+      }
     }
     emit(changed);
     if (pruned) emitHidden();
@@ -89,12 +102,20 @@ function createTracker({ now }) {
     if (pruned) emitHidden();
   }
 
-  function setHidden(urls) { hidden.clear(); for (const u of urls || []) hidden.add(String(u)); }
+  /** Loads the stored hidden list: the old format is an array of urls (present), the new one { url, missingSince, account }. */
+  function setHidden(list) {
+    hidden.clear();
+    for (const e of list || []) {
+      const o = e && typeof e === 'object' ? e : { url: e };
+      if (!o.url) continue;
+      hidden.set(String(o.url), { missingSince: Number.isFinite(o.missingSince) ? o.missingSince : null, account: o.account ? String(o.account) : null });
+    }
+  }
 
   function hide(url) {
     if (hidden.has(url)) return;
-    hidden.add(url);
     const r = rows.get(url);
+    hidden.set(url, { missingSince: null, account: r ? r.pr.account : null });
     if (r && r.highlight) rows.set(url, { ...r, highlight: false });
     emit(true);
     emitHidden();
@@ -127,7 +148,10 @@ function createTracker({ now }) {
     badge: () => [...rows.values()].filter((r) => r.state.actionable && !hidden.has(r.pr.url)).length,
     notes: () => [...(pollNote ? [pollNote] : []), ...(globalNote ? [globalNote] : []), ...notes.values()],
     anyRunning: () => [...rows.values()].some((r) => r.state.rule === 6),
-    hiddenUrls: () => [...hidden],
+    hiddenUrls: () => [...hidden.keys()],
+    hiddenEntries,
+    /** Hidden PRs the last successful list of their account did not return: { url, account }, oldest first. */
+    hiddenMissing: () => [...hidden].filter(([, h]) => h.missingSince !== null).sort((a, b) => a[1].missingSince - b[1].missingSince).map(([url, h]) => ({ url, account: h.account })),
     onChange: (fn) => { listeners.push(fn); },
     onHiddenChange: (fn) => { hiddenListeners.push(fn); },
   };

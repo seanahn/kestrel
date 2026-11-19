@@ -124,9 +124,11 @@ test('hidden urls load from globalState and are written back on change', async (
   assert.strictEqual(api.tracker.rows().find((r) => r.pr.url === u1).hidden, true);
   assert.strictEqual(api.tracker.badge(), 1);
   api.tracker.hide('https://github.com/acme/api/pull/2');
-  assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), [u1, 'https://github.com/acme/api/pull/2']);
+  const urlsOf = () => ctx.globalState.get('kestrel.hidden').map((e) => e.url);
+  assert.deepStrictEqual(urlsOf(), [u1, 'https://github.com/acme/api/pull/2']);
+  assert.ok(ctx.globalState.get('kestrel.hidden').every((e) => 'missingSince' in e));
   api.tracker.unhide(u1);
-  assert.deepStrictEqual(ctx.globalState.get('kestrel.hidden'), ['https://github.com/acme/api/pull/2']);
+  assert.deepStrictEqual(urlsOf(), ['https://github.com/acme/api/pull/2']);
   ext.deactivate();
 });
 

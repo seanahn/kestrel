@@ -223,12 +223,93 @@ test('hiding a highlighted row clears its highlight', () => {
   assert.strictEqual(row(tr, 1).highlight, false);
 });
 
-test('apply prunes hidden url when PR gone', () => {
-  const { tr } = make();
+const H = 3600000;
+
+test('a hidden PR missing from one successful round is still hidden after it returns', () => {
+  const { tr, clock } = make();
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.hide(U(1));
+  clock.t += 1000;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.strictEqual(row(tr, 1), undefined, 'its row is dropped while missing');
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+  assert.strictEqual(row(tr, 1).hidden, true);
+});
+
+test('a hidden PR stays in hiddenUrls while missing under 24 hours', () => {
+  const { tr, clock } = make();
   tr.apply('octo-dev', [pr(1), pr(2)]);
   tr.hide(U(1));
   tr.apply('octo-dev', [pr(2)]);
+  clock.t += 24 * H - 1;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+});
+
+test('a hidden PR missing for 24 hours is pruned', () => {
+  const { tr, clock } = make();
+  const seen = [];
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.hide(U(1));
+  tr.onHiddenChange((u) => seen.push(u));
+  tr.apply('octo-dev', [pr(2)]);
+  clock.t += 24 * H;
+  tr.apply('octo-dev', [pr(2)]);
   assert.deepStrictEqual(tr.hiddenUrls(), []);
+  assert.deepStrictEqual(seen.at(-1), []);
+});
+
+test('seeing a missing hidden PR again resets the 24 hour clock', () => {
+  const { tr, clock } = make();
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.hide(U(1));
+  tr.apply('octo-dev', [pr(2)]);
+  clock.t += 20 * H;
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.apply('octo-dev', [pr(2)]);
+  clock.t += 20 * H;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+  clock.t += 4 * H;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), []);
+});
+
+test('missing is judged per account: another account\'s round does not count', () => {
+  const { tr, clock } = make();
+  tr.apply('octo-dev', [pr(1)]);
+  tr.hide(U(1));
+  tr.apply('octo-dev', []);
+  clock.t += 25 * H;
+  tr.apply('octo-work', []);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)]);
+});
+
+test('the old stored format (array of strings) loads as present; entries round-trip', () => {
+  const { tr, clock } = make();
+  tr.setHidden([U(1), { url: U(2), missingSince: T0 - 5, account: 'octo-dev' }]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1), U(2)]);
+  assert.deepStrictEqual(tr.hiddenEntries(), [
+    { url: U(1), missingSince: null, account: null },
+    { url: U(2), missingSince: T0 - 5, account: 'octo-dev' },
+  ]);
+  tr.apply('octo-dev', [pr(1)]);
+  assert.strictEqual(row(tr, 1).hidden, true);
+  assert.deepStrictEqual(tr.hiddenEntries()[0], { url: U(1), missingSince: null, account: 'octo-dev' });
+  assert.deepStrictEqual(tr.hiddenMissing(), [{ url: U(2), account: 'octo-dev' }]);
+});
+
+test('missingSince changes are reported to onHiddenChange so they persist', () => {
+  const { tr } = make();
+  const seen = [];
+  tr.apply('octo-dev', [pr(1)]);
+  tr.hide(U(1));
+  tr.onHiddenChange((u, e) => seen.push(e));
+  tr.apply('octo-dev', []);
+  assert.strictEqual(seen.at(-1)[0].missingSince, T0);
+  tr.apply('octo-dev', [pr(1)]);
+  assert.strictEqual(seen.at(-1)[0].missingSince, null);
 });
 
 test('drop keeps hidden url', () => {
@@ -270,7 +351,7 @@ test('onHiddenChange reports urls; hide/unhide fire onChange once, no-ops never'
   assert.strictEqual(n, 3);
   assert.deepStrictEqual(seen, [[U(1)], [U(1), U(2)], [U(2)]]);
   tr.apply('octo-dev', [pr(1)]);
-  assert.deepStrictEqual(seen[3], []);
+  assert.deepStrictEqual(seen[3], [U(2)], 'missing from a list keeps the hide (and persists missingSince)');
 });
 
 test('the poll note has its own slot, before the global note and account notes', () => {
