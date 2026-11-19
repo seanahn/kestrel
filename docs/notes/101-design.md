@@ -259,6 +259,11 @@ summaries"), not as anything specific to one reviewer.
   kestrel can't know a review is coming and may show **merge** before it
   arrives. That is accepted, and the README says reviewers should run as a
   check *(builder's call)*.
+- A branch rule closes that gap too, if it requires at least one approval,
+  the bot's approval counts toward it, and stale approvals are dismissed
+  on push. Until the bot approves the new head, GitHub reports the PR
+  `BLOCKED`, so the row shows state 8, not **merge**. Sean's repos are set
+  up this way, and their reviewer also runs as a check (2026-11-19).
 - `blockers.length` and `findings.length` give the counts. The entries'
   contents are not shown.
 - A marker that fails to decode is ignored, as if absent.
