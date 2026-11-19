@@ -27,7 +27,7 @@ function world() {
   w.client = {
     listPrs: async (token) => { w.listed.push(token); return { items: lists[token] || [], rateLimit: RATE }; },
     detailPrs: async (token, ids) => ({ prs: (lists[token] || []).filter((p) => ids.includes(p.id)), rateLimit: RATE }),
-    prByUrl: async (token, url) => { w.byUrl.push([token, url]); return pr(9, 'acme/api'); },
+    prByUrl: async (token, url) => { w.byUrl.push([token, url]); return { ...pr(9, 'acme/api'), state: 'OPEN', author: 'octo-work' }; },
     merge: async () => {},
   };
   w.timers = { set: (fn, ms) => { w.scheduled.push({ fn, ms }); return w.scheduled.length; }, clear: () => {} };
@@ -178,5 +178,31 @@ test('accounts are listed on start, on Refresh and on a kestrel.accounts change,
   assert.strictEqual(status(), 2);
   ui.setConfig('kestrel.accounts', ['octo-dev']); await settle(); await settle();
   assert.strictEqual(status(), 3);
+  ext.deactivate();
+});
+
+test('kestrel.watch ignores anything that is not a github.com PR url', async () => {
+  const { w } = await boot();
+  for (const bad of [undefined, 'https://github.com/acme/api/issues/9', 42]) await ui.commands['kestrel.watch'](bad);
+  await settle(); await settle();
+  assert.deepStrictEqual(w.byUrl, []);
+  ext.deactivate();
+});
+
+test('merging a watched PR unwatches it', async () => {
+  const { w, api } = await boot();
+  const url = 'https://github.com/acme/api/pull/9';
+  await ui.commands['kestrel.watch'](url);
+  await settle(); await settle();
+  assert.strictEqual(api.tracker.rows().find((r) => r.pr.url === url).pr.account, 'octo-work');
+  ui.answer = (m, o, ...items) => items[0];
+  assert.strictEqual(await api.merger.merge(url), 'merged');
+  ui.answer = () => undefined;
+  await settle(); await settle();
+  const n = w.byUrl.length;
+  const next = w.scheduled[w.scheduled.length - 1];
+  await next.fn(); await settle(); await settle();
+  assert.strictEqual(w.byUrl.length, n, 'no more fetches by url');
+  assert.ok(!api.tracker.rows().some((r) => r.pr.url === url));
   ext.deactivate();
 });

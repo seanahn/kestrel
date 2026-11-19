@@ -46,6 +46,7 @@ function activate(context, deps = {}) {
     vscode, client, tokenFor: sync.tokenFor, tracker, pollNow: () => poller.kick(),
     preferred: () => cfg().get('mergeMethod', 'squash'),
     onBusyChange: () => panel.render(),
+    onMerged: (url) => sync.unwatch(url),
   });
   panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger });
 
@@ -53,14 +54,14 @@ function activate(context, deps = {}) {
     out,
     vscode.window.registerWebviewViewProvider('kestrel.prs', panel),
     vscode.commands.registerCommand('kestrel.refresh', () => { sync.relist(); sync.fast(); poller.kick(); }),
-    vscode.commands.registerCommand('kestrel.watch', (url) => { sync.watch(String(url)); poller.kick(); }),
+    vscode.commands.registerCommand('kestrel.watch', (url) => { if (sync.watch(url)) poller.kick(); }),
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('kestrel.accounts')) { sync.relist(); poller.kick(); } }),
     vscode.window.onDidChangeWindowState((s) => { if (s.focused) poller.kick(); }),
     { dispose: () => poller.stop() },
   );
 
   poller.start();
-  current = { tracker, sync, poller, panel };
+  current = { tracker, sync, poller, panel, merger };
   return current;
 }
 

@@ -221,7 +221,8 @@ dependency) rather than shelling out to `gh` each time *(builder's call)*:
 
 and for each PR (detail query):
 
-- `number, title, url, isDraft, updatedAt, repository { nameWithOwner }`
+- `number, title, url, isDraft, updatedAt, state, author { login }, repository { nameWithOwner }`
+  (`state` and `author` serve `kestrel.watch`; ruling during build, 2026-11-19)
 - `mergeable, mergeStateStatus, reviewDecision`
 - `headRefOid`
 - `commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { nodes { ... on CheckRun { name status conclusion } ... on StatusContext { context state } } } } } } }`
@@ -276,6 +277,14 @@ tools can call. Calling it also switches to the 10 s interval for 5
 minutes. Any PR it's given is fetched by
 URL (`resource(url:)`) on every poll until search returns it. perch may
 call it later. It is not part of perch's change for this first version.
+Rules for watched PRs *(ruling during build, 2026-11-19)*: the argument
+must be a URL of the form `https://github.com/{owner}/{repo}/pull/{n}`
+(anything else, including no argument, is ignored); the PR must be open
+(a merged or closed one is dropped from the watch list); it must be
+authored by one of the signed-in accounts, and its row belongs to that
+account (a PR nobody here authored is ignored and unwatched, so kestrel
+never offers **merge** on someone else's PR); and merging it from the
+panel unwatches it.
 
 ### The review bot summary
 

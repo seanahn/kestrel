@@ -66,7 +66,7 @@ test('detailPrs batches 20 and maps one PR to the exact Pr', async () => {
   assert.strictEqual(f.calls[1].body.variables.ids.length, 5);
   assert.deepStrictEqual(r.prs, [{
     id: 'PR_7', url: 'https://github.com/acme/widgets/pull/7', number: 7, title: 'Add widget', repo: 'acme/widgets', account: '',
-    isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
+    state: 'OPEN', author: 'octo-dev', isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
     reviewDecision: 'REVIEW_REQUIRED',
     checks: [{ name: 'test', state: 'success' }, { name: 'ci/legacy', state: 'pending' }],
     reviews: [
@@ -88,6 +88,10 @@ test('prByUrl uses resource(url:) and returns a Pr or null', async () => {
   assert.strictEqual(pr.account, '');
   assert.strictEqual(f.calls[0].body.variables.url, 'https://github.com/acme/widgets/pull/7');
   assert.match(f.calls[0].body.query, /resource\(url:/);
+  assert.match(f.calls[0].body.query, /\bstate\b/);
+  assert.match(f.calls[0].body.query, /author \{ login \}/);
+  assert.strictEqual(pr.state, 'OPEN');
+  assert.strictEqual(pr.author, 'octo-dev');
   for (const resource of [null, { __typename: 'Issue' }, {}]) {
     const g = fake(ok({ data: { resource, rateLimit: { remaining: 1, resetAt: 'r', cost: 1 } } }));
     assert.strictEqual(await createClient({ request: g.request }).prByUrl('tok', 'https://github.com/acme/widgets/issues/1'), null);

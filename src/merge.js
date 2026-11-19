@@ -9,7 +9,7 @@ function pickMethod(allowed, preferred) {
   return first ? first.toUpperCase() : null;
 }
 
-function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, onBusyChange = () => {} }) {
+function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, onBusyChange = () => {}, onMerged = () => {} }) {
   const inFlight = new Set();
 
   async function merge(url) {
@@ -32,6 +32,7 @@ function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, o
       const token = await tokenFor(pr.account);
       await client.merge(token, { id: pr.id, method, expectedHeadOid: pr.headOid });
       tracker.remove(url);
+      onMerged(url);
       return 'merged';
     } catch (e) {
       if (e && e.kind === 'refused') { tracker.setError(url, e.message); return 'refused'; }

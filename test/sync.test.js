@@ -11,6 +11,7 @@ const item = (n, o = {}) => ({
   mergeable: 'MERGEABLE', mergeState: 'CLEAN', isDraft: false, reviewDecision: null, rollup: 'SUCCESS', ...o,
 });
 const full = (it) => ({
+  state: 'OPEN', author: 'octo-dev',
   ...it, number: Number(it.id.slice(3)), title: `Change ${it.id}`, repo: 'acme/widgets', account: '',
   checks: [{ name: 'test', state: 'success' }], reviews: [], unresolvedThreads: 0, mergeMethods: { squash: true, merge: true, rebase: true },
 });
@@ -304,4 +305,56 @@ test('a login gh no longer reports is dropped with the expired note; one exclude
   await b.sync.run();
   assert.deepStrictEqual(nums(b.tracker), [1]);
   assert.deepStrictEqual(b.tracker.notes(), []);
+});
+
+test('a watched PR that is not open is unwatched and never shown', async () => {
+  for (const st of ['MERGED', 'CLOSED']) {
+    const other = item(9, { url: 'https://github.com/acme/api/pull/9', state: st });
+    const { sync, tracker, calls } = setup({ lists: { 'octo-dev': [item(1)] }, byUrl: { [other.url]: other } });
+    assert.strictEqual(sync.watch(other.url), true);
+    await sync.run();
+    assert.deepStrictEqual(nums(tracker), [1], st);
+    await sync.run();
+    assert.strictEqual(calls.byUrl.length, 1, `${st}: unwatched`);
+  }
+});
+
+test('a watched PR goes to the account that authored it; one no account authored is ignored', async () => {
+  const mine = item(9, { url: 'https://github.com/acme/api/pull/9', author: 'octo-work' });
+  const theirs = item(8, { url: 'https://github.com/acme/api/pull/8', author: 'someone-else' });
+  const { sync, tracker, calls } = setup({
+    logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1)], 'octo-work': [] },
+    byUrl: { [mine.url]: mine, [theirs.url]: theirs },
+  });
+  sync.watch(mine.url); sync.watch(theirs.url);
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1, 9]);
+  assert.strictEqual(tracker.rows().find((r) => r.pr.number === 9).pr.account, 'octo-work');
+  await sync.run();
+  assert.deepStrictEqual(calls.byUrl.map((c) => c[1]), [mine.url, theirs.url, mine.url], 'the stranger\'s PR is unwatched');
+  assert.deepStrictEqual(nums(tracker), [1, 9], 'and the watched row survives octo-work\'s apply');
+});
+
+test('unwatch stops fetching and the row does not come back', async () => {
+  const other = item(9, { url: 'https://github.com/acme/api/pull/9' });
+  const { sync, tracker, calls } = setup({ lists: { 'octo-dev': [item(1)] }, byUrl: { [other.url]: other } });
+  sync.watch(other.url);
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1, 9]);
+  tracker.remove(other.url);
+  sync.unwatch(other.url);
+  await sync.run();
+  assert.strictEqual(calls.byUrl.length, 1);
+  assert.deepStrictEqual(nums(tracker), [1]);
+});
+
+test('watch accepts only github.com PR urls', async () => {
+  const { sync, calls } = setup({ lists: { 'octo-dev': [item(1)] } });
+  for (const bad of [undefined, null, '', 'undefined', 'https://github.com/acme/api/issues/9', 'https://example.com/acme/api/pull/9',
+    'http://github.com/acme/api/pull/9', 'https://github.com/acme/api/pull/9/files', 'https://github.com/acme/pull/9']) {
+    assert.strictEqual(sync.watch(bad), false, String(bad));
+  }
+  assert.strictEqual(sync.fastUntil(), 0, 'a rejected watch does not speed up polling');
+  await sync.run();
+  assert.deepStrictEqual(calls.byUrl, []);
 });

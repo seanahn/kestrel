@@ -7,6 +7,8 @@
         "title": "Add widget",
         "url": "https://github.com/acme/widgets/pull/7",
         "isDraft": false,
+        "state": "OPEN",
+        "author": { "login": "octo-dev" },
         "updatedAt": "2026-01-05T00:00:00Z",
         "repository": {
           "nameWithOwner": "acme/widgets",

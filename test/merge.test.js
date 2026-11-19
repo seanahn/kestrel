@@ -13,7 +13,7 @@ const pr = (o = {}) => ({
   checks: [], reviews: [], unresolvedThreads: 0, mergeMethods: { squash: true, merge: true, rebase: false }, ...o,
 });
 
-function setup({ prOver = {}, mergeImpl, tokenFor, preferred = 'squash' } = {}) {
+function setup({ prOver = {}, mergeImpl, tokenFor, preferred = 'squash', onMerged } = {}) {
   const { vscode, ui } = install();
   const tracker = createTracker({ now: () => 1000 });
   tracker.apply('octo-work', [pr(prOver)]);
@@ -21,7 +21,7 @@ function setup({ prOver = {}, mergeImpl, tokenFor, preferred = 'squash' } = {}) 
   const client = { merge: async (token, spec) => { calls.merge.push([token, spec]); return mergeImpl ? mergeImpl() : undefined; } };
   const merger = createMerger({
     vscode, client, tracker, pollNow: () => { calls.poll++; }, preferred: () => preferred,
-    tokenFor: tokenFor || (async (login) => `tok-${login}`), onBusyChange: () => { calls.busy++; },
+    tokenFor: tokenFor || (async (login) => `tok-${login}`), onBusyChange: () => { calls.busy++; }, onMerged,
   });
   return { ui, tracker, calls, merger };
 }
@@ -118,4 +118,16 @@ test('no usable merge method is refused', async () => {
   assert.strictEqual(await merger.merge(URL), 'refused');
   assert.strictEqual(errOf(tracker), 'This repo allows no merge method kestrel can use');
   assert.strictEqual(calls.merge.length, 0);
+});
+
+test('a merged PR is reported to onMerged (which unwatches it); a refused one is not', async () => {
+  const merged = [];
+  const a = setup({ onMerged: (u) => merged.push(u) });
+  a.ui.answer = (m, o, ...items) => items[0];
+  assert.strictEqual(await a.merger.merge(URL), 'merged');
+  assert.deepStrictEqual(merged, [URL]);
+  const b = setup({ onMerged: (u) => merged.push(u), mergeImpl: async () => { throw new GitHubError('refused', 'no'); } });
+  b.ui.answer = (m, o, ...items) => items[0];
+  assert.strictEqual(await b.merger.merge(URL), 'refused');
+  assert.deepStrictEqual(merged, [URL]);
 });

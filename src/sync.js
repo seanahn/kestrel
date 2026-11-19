@@ -8,6 +8,7 @@ const RATE_FLOOR = 200;
 const NO_GH_RETRY_MS = 30000;
 const MIN_RATE_WAIT_MS = 5000;
 const PROBABLY_RUNNING = new Set(['PENDING', 'EXPECTED']);
+const PR_URL = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/;
 
 const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
 const fingerprint = (i) => [i.updatedAt, i.headOid, i.mergeable, i.mergeState, i.isDraft, i.reviewDecision, i.rollup].join('|');
@@ -19,7 +20,7 @@ function rateError(message, retryAfterMs, local = false) {
 
 function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
   const caches = new Map();   // login -> Map(pr id -> { key, pr })
-  const watched = new Set();  // urls to keep fetching until a list returns them
+  const watched = new Set();  // urls to keep fetching until a list returns them, the PR closes, or it is merged here
   const lastSeen = new Map(); // watched url -> last Pr fetched, kept in the rows when a fetch is skipped or fails
   let fastUntil = 0;
   let logins = [];            // the account list, reused until a relist
@@ -118,21 +119,26 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
           for (const url of [...watched]) {
             let pr = null;
             try { pr = await client.prByUrl(token, url); } catch (e) {
-              if (e && (e.kind === 'throttle' || e.kind === 'offline')) throw e;
+              if (e && (e.kind === 'throttle' || e.kind === 'offline' || e.kind === 'rate')) throw e;
               continue;
             }
-            if (pr) { pr = { ...pr, account: first.login }; lastSeen.set(url, pr); fresh.add(url); first.prs = [...first.prs, pr]; }
-            else { watched.delete(url); lastSeen.delete(url); }
+            // Only an open PR that one of the signed-in accounts authored; it belongs to that account.
+            const owner = pr && pr.state === 'OPEN' ? logins.find((l) => l === pr.author) : undefined;
+            if (!owner) { watched.delete(url); lastSeen.delete(url); continue; }
+            pr = { ...pr, account: owner };
+            lastSeen.set(url, pr); fresh.add(url);
+            const r = results.find((x) => x.login === owner);
+            if (r) r.prs = [...r.prs, pr];
           }
         }
       }
     } catch (e) { failure = e; }
 
     // A watched row goes only when its PR is gone or listed; a skipped or failed fetch keeps the last copy.
-    if (results.length) {
-      for (const url of watched) {
-        if (!fresh.has(url) && lastSeen.has(url)) results[0].prs = [...results[0].prs, lastSeen.get(url)];
-      }
+    for (const url of watched) {
+      const seen = !fresh.has(url) && lastSeen.get(url);
+      const r = seen && results.find((x) => x.login === seen.account);
+      if (r) r.prs = [...r.prs, seen];
     }
     for (const r of results) { tracker.apply(r.login, r.prs); tracker.clearNote(r.login); }
     if (failure) throw failure;
@@ -151,7 +157,13 @@ function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
   return {
     run,
     relist() { relist = true; },
-    watch(url) { watched.add(url); fastUntil = now() + FAST_WINDOW_MS; },
+    /** Watches a github.com PR url; false (and nothing changes) for anything else. */
+    watch(url) {
+      if (typeof url !== 'string' || !PR_URL.test(url)) return false;
+      watched.add(url); fastUntil = now() + FAST_WINDOW_MS;
+      return true;
+    },
+    unwatch(url) { watched.delete(url); lastSeen.delete(url); },
     fast() { fastUntil = now() + FAST_WINDOW_MS; },
     fastUntil: () => fastUntil,
     tokenFor: (login) => accounts.token(login),

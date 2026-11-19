@@ -23,7 +23,7 @@ const LIST_QUERY = `query($q: String!, $after: String) {
 }`;
 
 const DETAIL_FIELDS = `
-  id number title url isDraft updatedAt
+  id number title url isDraft updatedAt state author { login }
   repository { nameWithOwner squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
   mergeable mergeStateStatus reviewDecision headRefOid
   commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { nodes {
@@ -119,6 +119,7 @@ function toPr(n) {
   const repo = n.repository || {};
   return {
     id: n.id, url: n.url, number: n.number, title: n.title, repo: repo.nameWithOwner, account: '',
+    state: n.state, author: (n.author && n.author.login) || null,
     isDraft: n.isDraft, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable,
     mergeState: n.mergeStateStatus, reviewDecision: n.reviewDecision || null,
     checks: normalizeChecks(nodesOf(rollup && rollup.contexts)),
