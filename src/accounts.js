@@ -3,17 +3,19 @@
 const { execFile } = require('node:child_process');
 
 const HOST = 'github.com';
-const LOGGED_IN = /Logged in to github\.com account (\S+)/;
+// "Failed to log in" lines are known accounts too: gh checks tokens online, so offline every login may fail here.
+// GitHub's answer (a 401, or a network error) decides between an expired login and being offline.
+const KNOWN = /(?:Logged in to|Failed to log in to) github\.com account (\S+)/;
 
 class NoGhError extends Error {
   constructor() { super('Sign in with `gh auth login`'); this.name = 'NoGhError'; }
 }
 
-/** Logins from `gh auth status` text, in order, unique. Failed ("Failed to log in") lines don't match. */
+/** Logins from `gh auth status` text, in order, unique, including failed ("Failed to log in") ones. */
 function parseAuthStatus(text) {
   const out = [];
   for (const line of String(text || '').split(/\r?\n/)) {
-    const m = LOGGED_IN.exec(line);
+    const m = KNOWN.exec(line);
     if (m && !out.includes(m[1])) out.push(m[1]);
   }
   return out;
@@ -32,13 +34,15 @@ function defaultRun(args) {
 
 function createAccounts({ run, allowed }) {
   const tokens = new Map();
+  const only = () => (allowed && allowed()) || [];
   return {
+    /** False when kestrel.accounts is set and leaves this login out. */
+    isAllowed: (login) => !only().length || only().includes(login),
     async list() {
       const r = await run(['auth', 'status', '--hostname', HOST]);
       if (r.code === 127) throw new NoGhError();
       let logins = parseAuthStatus(`${r.stdout}\n${r.stderr}`);
-      const only = (allowed && allowed()) || [];
-      if (only.length) logins = logins.filter((l) => only.includes(l));
+      if (only().length) logins = logins.filter((l) => only().includes(l));
       if (!logins.length) throw new NoGhError();
       return logins;
     },

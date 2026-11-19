@@ -56,12 +56,14 @@ function createTracker({ now }) {
 
   function fail(account, note) { emit(setNote(account, note)); }
 
+  /** Drops an account's rows. A falsy note clears its note. If it comes back, its first apply is quiet again. */
   function drop(account, note) {
     let changed = false;
+    applied.delete(account);
     for (const [url, r] of rows) {
       if (r.pr.account === account) { rows.delete(url); changed = true; }
     }
-    emit(setNote(account, note) || changed);
+    emit((note ? setNote(account, note) : notes.delete(account)) || changed);
   }
 
   function clearNote(account) { emit(notes.delete(account)); }

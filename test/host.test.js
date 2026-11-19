@@ -164,3 +164,19 @@ test('focus, Refresh and watch do not poll during a throttle hold', async () => 
   assert.ok(w.listed.length > n, 'after the hold, Refresh polls');
   ext.deactivate();
 });
+
+test('accounts are listed on start, on Refresh and on a kestrel.accounts change, not every poll', async () => {
+  const { w } = await boot();
+  const status = () => w.ghCalls.filter((a) => a[1] === 'status').length;
+  assert.strictEqual(status(), 1);
+  const next = w.scheduled[w.scheduled.length - 1];
+  await next.fn(); await settle();
+  assert.strictEqual(status(), 1, 'a timed poll reuses the list');
+  ui.setFocus(false); ui.setFocus(true); await settle(); await settle();
+  assert.strictEqual(status(), 1, 'a focus poll reuses the list');
+  await ui.commands['kestrel.refresh'](); await settle(); await settle();
+  assert.strictEqual(status(), 2);
+  ui.setConfig('kestrel.accounts', ['octo-dev']); await settle(); await settle();
+  assert.strictEqual(status(), 3);
+  ext.deactivate();
+});

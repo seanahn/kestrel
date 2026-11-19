@@ -284,3 +284,15 @@ test('the poll note has its own slot, before the global note and account notes',
   tr.setPollNote(null);
   assert.deepStrictEqual(tr.notes(), ['d']);
 });
+
+test('drop with no note clears the account note; a dropped account coming back is a quiet first apply', () => {
+  const { tr, clock } = make();
+  tr.apply('octo-dev', [pr(1)]);
+  tr.fail('octo-dev', 'x');
+  tr.drop('octo-dev', '');
+  assert.deepStrictEqual(tr.notes(), []);
+  clock.t += 1000;
+  tr.apply('octo-dev', [pr(1, conflict), pr(2, conflict)]);
+  assert.ok(tr.rows().every((r) => !r.highlight), 'no burst of events on recovery');
+  assert.strictEqual(row(tr, 1).changedAt, Date.parse(pr(1).updatedAt));
+});

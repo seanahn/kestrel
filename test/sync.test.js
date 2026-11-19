@@ -18,11 +18,17 @@ const RATE_OK = { remaining: 4000, resetAt: '2026-03-01T01:00:00Z', cost: 1 };
 const T0 = Date.parse('2026-03-01T00:00:00Z');
 
 function setup({ logins = ['octo-dev'], lists = {}, byUrl = {}, tokenFails = {}, rate = () => RATE_OK, onRound } = {}) {
-  const calls = { list: [], detail: [], tokens: [], byUrl: [] };
+  const calls = { list: [], detail: [], tokens: [], byUrl: [], accounts: 0 };
   const clock = { t: T0 };
-  const state = { lists: { ...lists }, auth: {} };
+  const state = { lists: { ...lists }, auth: {}, logins: [...logins], allowed: null };
   const accounts = {
-    list: async () => { if (!logins.length) throw new NoGhError(); return logins; },
+    list: async () => {
+      calls.accounts++;
+      const out = state.logins.filter((l) => !state.allowed || state.allowed.includes(l));
+      if (!out.length) throw new NoGhError();
+      return out;
+    },
+    isAllowed: (l) => !state.allowed || state.allowed.includes(l),
     token: async (login, o) => {
       calls.tokens.push([login, !!(o && o.fresh)]);
       if (tokenFails[login] && (o && o.fresh ? tokenFails[login].fresh : tokenFails[login].first)) throw new Error(`${login}: gh login expired, run \`gh auth login\``);
@@ -250,4 +256,52 @@ test('onRound reports each successful account with its PR count and summed cost'
   const { sync } = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1), item(2)], 'octo-work': [] }, onRound: (r) => rounds.push(r) });
   await sync.run();
   assert.deepStrictEqual(rounds, [{ login: 'octo-dev', count: 2, cost: 2 }, { login: 'octo-work', count: 0, cost: 1 }]);
+});
+
+test('accounts are listed on start and on relist, not every poll', async () => {
+  const { sync, calls } = setup({ lists: { 'octo-dev': [item(1)] } });
+  await sync.run(); await sync.run(); await sync.run();
+  assert.strictEqual(calls.accounts, 1);
+  sync.relist();
+  await sync.run(); await sync.run();
+  assert.strictEqual(calls.accounts, 2);
+});
+
+test('after a round that dropped an account, or had no gh, accounts are listed again', async () => {
+  const { sync, calls, state } = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1)], 'octo-work': [item(3)] } });
+  await sync.run();
+  state.lists['octo-work'] = () => { throw new GitHubError('auth', 'bad credentials', { status: 401 }); };
+  await sync.run();
+  assert.strictEqual(calls.accounts, 1);
+  state.lists['octo-work'] = [item(3)];
+  await sync.run();
+  assert.strictEqual(calls.accounts, 2, 'relisted after the drop');
+  await sync.run();
+  assert.strictEqual(calls.accounts, 2);
+  const saved = state.logins; state.logins = [];
+  sync.relist();
+  await assert.rejects(sync.run(), (e) => e.local);
+  assert.strictEqual(calls.accounts, 3);
+  state.logins = saved;
+  await sync.run();
+  assert.strictEqual(calls.accounts, 4, 'relisted after no gh');
+});
+
+test('a login gh no longer reports is dropped with the expired note; one excluded by settings without a note', async () => {
+  const { sync, tracker, state } = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1)], 'octo-work': [item(3, { url: 'https://github.com/acme/api/pull/3' })] } });
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1, 3]);
+  state.logins = ['octo-dev'];
+  sync.relist();
+  await sync.run();
+  assert.deepStrictEqual(nums(tracker), [1]);
+  assert.deepStrictEqual(tracker.notes(), ['octo-work: gh login expired, run `gh auth login`']);
+
+  const b = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1)], 'octo-work': [item(3, { url: 'https://github.com/acme/api/pull/3' })] } });
+  await b.sync.run();
+  b.state.allowed = ['octo-dev'];
+  b.sync.relist();
+  await b.sync.run();
+  assert.deepStrictEqual(nums(b.tracker), [1]);
+  assert.deepStrictEqual(b.tracker.notes(), []);
 });

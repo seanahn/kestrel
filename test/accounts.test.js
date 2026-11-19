@@ -26,8 +26,8 @@ const STATUS = [
 
 const ok = (stdout, code = 0, stderr = '') => ({ code, stdout, stderr });
 
-test('parseAuthStatus lists good logins in order and skips failed ones', () => {
-  assert.deepStrictEqual(parseAuthStatus(STATUS), ['octo-work', 'octo-dev']);
+test('parseAuthStatus lists every known login in order, failed ones too (GraphQL decides auth vs offline)', () => {
+  assert.deepStrictEqual(parseAuthStatus(STATUS), ['octo-work', 'octo-dev', 'octo-old']);
 });
 
 test('parseAuthStatus is unique and tolerates junk', () => {
@@ -40,7 +40,7 @@ test('list runs auth status, reads stdout and stderr, and parses at code 1', asy
   const calls = [];
   const run = async (args) => { calls.push(args); return ok('', 1, STATUS); };
   const a = createAccounts({ run, allowed: () => [] });
-  assert.deepStrictEqual(await a.list(), ['octo-work', 'octo-dev']);
+  assert.deepStrictEqual(await a.list(), ['octo-work', 'octo-dev', 'octo-old']);
   assert.deepStrictEqual(calls[0], ['auth', 'status', '--hostname', 'github.com']);
 });
 
@@ -71,4 +71,19 @@ test('token runs auth token for the user, trims, and caches', async () => {
 test('token rejects when gh fails', async () => {
   const a = createAccounts({ run: async () => ok('', 1, 'no token'), allowed: () => [] });
   await assert.rejects(a.token('octo-dev'), (e) => e instanceof Error && e.message === 'octo-dev: gh login expired, run `gh auth login`');
+});
+
+test('offline, gh reports every login failed: they are still listed', async () => {
+  const text = 'github.com\n  X Failed to log in to github.com account octo-dev (keyring)\n  - Active account: true\n';
+  const a = createAccounts({ run: async () => ok('', 1, text), allowed: () => [] });
+  assert.deepStrictEqual(await a.list(), ['octo-dev']);
+});
+
+test('isAllowed follows kestrel.accounts; empty allows all', () => {
+  let only = [];
+  const a = createAccounts({ run: async () => ok(STATUS), allowed: () => only });
+  assert.strictEqual(a.isAllowed('octo-old'), true);
+  only = ['octo-dev'];
+  assert.strictEqual(a.isAllowed('octo-dev'), true);
+  assert.strictEqual(a.isAllowed('octo-work'), false);
 });

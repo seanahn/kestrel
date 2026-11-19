@@ -170,7 +170,21 @@ start a sign-in.
 - On start, and on Refresh, it lists github.com accounts with
   `gh auth status --hostname github.com` (parsing the "Logged in to
   github.com account X" lines; gh 2.45 has no JSON output for this)
-  *(builder's call)*.
+  *(builder's call)*. It also lists them again when `kestrel.accounts`
+  changes and after a round in which an account was dropped or `gh` was
+  missing; every other poll reuses the last list. A newly added `gh` login
+  therefore appears on the next Refresh *(ruling during build,
+  2026-11-19)*.
+- "Failed to log in to github.com account X" lines are kept as known
+  accounts. `gh auth status` checks tokens online, so offline every login
+  may "fail"; GitHub's answer decides instead: a 401 goes through the
+  fresh-token retry below and drops the account, a network error is
+  "Offline, retrying" *(ruling during build, 2026-11-19)*.
+- A login that was listed before and is missing from a new list is
+  dropped: with no note when `kestrel.accounts` now leaves it out,
+  otherwise with the expired note below. A dropped account that comes back
+  loads quietly, like a first load, not as a burst of events *(ruling
+  during build, 2026-11-19)*.
 - For each account, `gh auth token --hostname github.com --user <login>`
   gives its token. Tokens are held in memory only.
 - The setting `kestrel.accounts` (array of logins, default empty = all)

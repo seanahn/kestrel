@@ -52,9 +52,9 @@ function activate(context, deps = {}) {
   context.subscriptions.push(
     out,
     vscode.window.registerWebviewViewProvider('kestrel.prs', panel),
-    vscode.commands.registerCommand('kestrel.refresh', () => { sync.fast(); poller.kick(); }),
+    vscode.commands.registerCommand('kestrel.refresh', () => { sync.relist(); sync.fast(); poller.kick(); }),
     vscode.commands.registerCommand('kestrel.watch', (url) => { sync.watch(String(url)); poller.kick(); }),
-    vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('kestrel.accounts')) poller.kick(); }),
+    vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('kestrel.accounts')) { sync.relist(); poller.kick(); } }),
     vscode.window.onDidChangeWindowState((s) => { if (s.focused) poller.kick(); }),
     { dispose: () => poller.stop() },
   );
