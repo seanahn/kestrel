@@ -1,5 +1,6 @@
 'use strict';
-// Merging (design 101, "Merging"): a modal confirm, then one guarded merge call. Never retried, never unguarded.
+// Merging (design 101, "Merging"): a modal confirm, a re-check of the row, then one guarded merge call. Never retried,
+// never unguarded.
 const METHOD_LABEL = { SQUASH: 'Squash and merge', MERGE: 'Create a merge commit', REBASE: 'Rebase and merge' };
 
 function pickMethod(allowed, preferred) {
@@ -25,6 +26,12 @@ function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, o
     const answer = await vscode.window.showWarningMessage(`Merge ${pr.repo}#${pr.number} "${pr.title}"?`, { modal: true }, label);
     if (answer !== label) return 'cancelled';
     if (inFlight.has(url)) return 'busy';
+    // A poll may have landed while the modal was open: merge only what Sean confirmed.
+    const now = tracker.rows().find((r) => r.pr.url === url);
+    if (!now || now.state.rule !== 9 || now.pr.headOid !== pr.headOid) {
+      tracker.setError(url, 'The PR changed; check it again');
+      return 'changed';
+    }
 
     inFlight.add(url);
     onBusyChange();

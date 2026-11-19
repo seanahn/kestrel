@@ -362,17 +362,21 @@ Clicking **merge**:
    kestrel uses the setting `kestrel.mergeMethod` (`squash` | `merge` |
    `rebase`, default `squash`) if the repo allows it, otherwise the first
    allowed of squash, merge, rebase *(builder's call)*.
-3. GraphQL `mergePullRequest(pullRequestId, mergeMethod, expectedHeadOid: headRefOid)`.
+3. After the confirm, kestrel reads the row again. If a poll changed it
+   while the modal was open (no longer **merge**, or a new head commit),
+   nothing is merged and the row shows "The PR changed; check it again"
+   *(ruling during build, 2026-11-19)*.
+4. GraphQL `mergePullRequest(pullRequestId, mergeMethod, expectedHeadOid: headRefOid)`.
    `expectedHeadOid` makes GitHub refuse if a new commit landed after the
    row was drawn, so kestrel never merges something Sean didn't see.
-4. On success, the row is removed. Deleting the branch is left to the repo's
+5. On success, the row is removed. Deleting the branch is left to the repo's
    "automatically delete head branches" setting *(builder's call)*.
-5. On refusal, the row shows GitHub's message in red until the next poll
+6. On refusal, the row shows GitHub's message in red until the next poll
    recomputes its state. A 401 or network error during the merge shows
    "Merge not confirmed: {error}" and polls right away. The next poll
    either finds the PR gone (merged) or still open, so a merge is never
    retried blindly.
-6. The merge uses the token of the account the row came from. A second
+7. The merge uses the token of the account the row came from. A second
    click while a merge is in flight does nothing (the link shows
    "merging…"). Cancelling the confirm does nothing.
 

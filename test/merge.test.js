@@ -131,3 +131,23 @@ test('a merged PR is reported to onMerged (which unwatches it); a refused one is
   assert.strictEqual(await b.merger.merge(URL), 'refused');
   assert.deepStrictEqual(merged, [URL]);
 });
+
+test('a PR that changed while the confirm was open is not merged', async () => {
+  const cases = [
+    ['head moved', pr({ headOid: 'def456' })],
+    ['no longer mergeable', pr({ mergeable: 'CONFLICTING' })],
+    ['checks started again', pr({ checks: [{ name: 'test', state: 'pending' }] })],
+  ];
+  for (const [label, next] of cases) {
+    const { ui, merger, tracker, calls } = setup();
+    ui.answer = (m, o, ...items) => { tracker.apply('octo-work', [next]); return items[0]; };
+    assert.strictEqual(await merger.merge(URL), 'changed', label);
+    assert.strictEqual(calls.merge.length, 0, label);
+    assert.strictEqual(errOf(tracker), 'The PR changed; check it again', label);
+    assert.strictEqual(merger.busy(URL), false, label);
+  }
+  const { ui, merger, tracker, calls } = setup();
+  ui.answer = (m, o, ...items) => { tracker.remove(URL); return items[0]; };
+  assert.strictEqual(await merger.merge(URL), 'changed', 'gone');
+  assert.strictEqual(calls.merge.length, 0);
+});
