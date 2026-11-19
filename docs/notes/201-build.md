@@ -76,8 +76,8 @@ commits, `1848b92` and `683e04b`, were fast-forwarded onto perch's
 
 - A hidden PR stays hidden when one search round misses it. It leaves the
   hidden list only when fetched by URL as merged or closed (up to 5 per
-  round, rotating), merged from the panel, or missing from every successful
-  list of its account for 24 hours. `kestrel.hidden` now stores
+  round, rotating, each at most every 15 minutes), merged from the panel, or missing from every successful
+  list of its account for 24 hours (a migrated hide with no account yet is never aged by time until a list returns it). `kestrel.hidden` now stores
   `{ url, missingSince, account }`; the old array of urls still loads.
 
 ## Known gaps

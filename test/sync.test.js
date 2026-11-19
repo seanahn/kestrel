@@ -399,16 +399,64 @@ test('a failed URL fetch of a missing hidden PR keeps the hide', async () => {
   assert.deepStrictEqual(tracker.hiddenUrls(), [item(1).url]);
 });
 
-test('at most five missing hidden PRs are fetched by URL per round', async () => {
+const seven = async () => {
   const items = [1, 2, 3, 4, 5, 6, 7].map((n) => item(n));
-  const { sync, tracker, calls, state } = setup({ lists: { 'octo-dev': items } });
+  const ctx = setup({ lists: { 'octo-dev': items } });
+  await ctx.sync.run();
+  for (const i of items) ctx.tracker.hide(i.url);
+  ctx.state.lists['octo-dev'] = [];
+  return ctx;
+};
+const fetched = (calls, from, to) => calls.byUrl.slice(from, to).map((c) => Number(c[1].split('/').pop()));
+
+test('missing hidden PRs: 5 per round, rotating (6th and 7th next, 10 total over two rounds)', async () => {
+  const { sync, calls, clock } = await seven();
   await sync.run();
-  for (const i of items) tracker.hide(i.url);
+  assert.deepStrictEqual(fetched(calls, 0), [1, 2, 3, 4, 5]);
+  clock.t += 15 * 60000;
+  await sync.run();
+  assert.deepStrictEqual(fetched(calls, 5), [6, 7, 1, 2, 3]);
+  assert.strictEqual(calls.byUrl.length, 10);
+});
+
+test('a missing hidden PR is not fetched again within 15 minutes; the cap applies after that filter', async () => {
+  const { sync, calls, clock } = await seven();
+  await sync.run();
+  clock.t += 60000;
+  await sync.run();
+  assert.deepStrictEqual(fetched(calls, 5), [6, 7], 'only the unchecked ones');
+  clock.t += 60000;
+  await sync.run();
+  assert.strictEqual(calls.byUrl.length, 7, 'nothing is due');
+  clock.t += 15 * 60000;
+  await sync.run();
+  assert.strictEqual(calls.byUrl.length, 12, 'due again, capped at five');
+});
+
+test('a failed list round leaves missingSince unset and the hide intact', async () => {
+  for (const kind of ['partial', 'http', 'refused', 'auth']) {
+    const ctx = setup({ lists: { 'octo-dev': [item(1)] } });
+    await ctx.sync.run();
+    ctx.tracker.hide(item(1).url);
+    ctx.state.lists['octo-dev'] = () => { throw new GitHubError(kind, 'x', { status: 401 }); };
+    await ctx.sync.run().catch(() => {});
+    assert.deepStrictEqual(ctx.tracker.hiddenUrls(), [item(1).url], kind);
+    assert.strictEqual(ctx.tracker.hiddenEntries()[0].missingSince, null, kind);
+    assert.strictEqual(ctx.calls.byUrl.length, 0, kind);
+  }
+});
+
+test('with two accounts and one list failing, the by-URL check skips that account\'s hides', async () => {
+  const mine = item(1); const theirs = item(2);
+  const { sync, tracker, calls, state } = setup({
+    logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [mine], 'octo-work': [theirs] },
+    byUrl: { [theirs.url]: item(2, { state: 'MERGED' }), [mine.url]: item(1, { state: 'MERGED' }) },
+  });
+  await sync.run();
+  tracker.hide(mine.url); tracker.hide(theirs.url);
   state.lists['octo-dev'] = [];
+  state.lists['octo-work'] = () => { throw new GitHubError('http', 'HTTP 500', { status: 500 }); };
   await sync.run();
-  await sync.run();
-  const per = calls.byUrl.length;
-  assert.ok(per >= 5 && per <= 10, `calls ${per}`);
-  const first = new Set(calls.byUrl.slice(0, 5).map((c) => c[1]));
-  assert.strictEqual(first.size, 5);
+  assert.deepStrictEqual(calls.byUrl.map((c) => c[1]), [mine.url], 'only the account whose list succeeded');
+  assert.deepStrictEqual(tracker.hiddenUrls(), [theirs.url]);
 });

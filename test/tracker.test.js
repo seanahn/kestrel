@@ -377,3 +377,29 @@ test('drop with no note clears the account note; a dropped account coming back i
   assert.ok(tr.rows().every((r) => !r.highlight), 'no burst of events on recovery');
   assert.strictEqual(row(tr, 1).changedAt, Date.parse(pr(1).updatedAt));
 });
+
+test('a migrated hide (no account) never starts or advances the clock from a list that lacks it', () => {
+  const { tr, clock } = make();
+  tr.setHidden([U(1)]);
+  tr.apply('octo-dev', [pr(2)]);
+  assert.strictEqual(tr.hiddenEntries()[0].missingSince, null);
+  clock.t += 48 * H;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)], 'never pruned by time');
+  assert.deepStrictEqual(tr.hiddenMissing(), [{ url: U(1), account: null }], 'still due for a by-URL check');
+});
+
+test('a migrated hide is adopted by the account whose list returns it, whatever the round order', () => {
+  const { tr, clock } = make();
+  tr.setHidden([U(1)]);
+  tr.apply('octo-dev', [pr(2)]);                      // the other account's list comes first
+  tr.apply('octo-work', [pr(1, { account: 'octo-work' })]);
+  assert.deepStrictEqual(tr.hiddenEntries(), [{ url: U(1), missingSince: null, account: 'octo-work' }]);
+  clock.t += 30 * H;
+  tr.apply('octo-dev', [pr(2)]);
+  assert.deepStrictEqual(tr.hiddenUrls(), [U(1)], 'octo-dev lists never judge it');
+  tr.apply('octo-work', []);
+  clock.t += 24 * H;
+  tr.apply('octo-work', []);
+  assert.deepStrictEqual(tr.hiddenUrls(), [], 'once adopted, its own account judges it');
+});

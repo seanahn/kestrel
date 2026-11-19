@@ -52,7 +52,7 @@ function createTracker({ now }) {
       if (seen.has(url)) {
         const acct = rows.get(url).pr.account;
         if (h.missingSince !== null || h.account !== acct) { hidden.set(url, { missingSince: null, account: acct }); pruned = true; }
-      } else if (h.account === null || h.account === account) {
+      } else if (h.account === account) {   // a migrated hide (no account yet) is judged by no list until one returns it
         if (h.missingSince === null) { hidden.set(url, { ...h, missingSince: now() }); pruned = true; }
         else if (now() - h.missingSince >= MISSING_MS) { hidden.delete(url); pruned = true; }
       }
@@ -150,8 +150,8 @@ function createTracker({ now }) {
     anyRunning: () => [...rows.values()].some((r) => r.state.rule === 6),
     hiddenUrls: () => [...hidden.keys()],
     hiddenEntries,
-    /** Hidden PRs the last successful list of their account did not return: { url, account }, oldest first. */
-    hiddenMissing: () => [...hidden].filter(([, h]) => h.missingSince !== null).sort((a, b) => a[1].missingSince - b[1].missingSince).map(([url, h]) => ({ url, account: h.account })),
+    /** Hidden PRs a list didn't return, plus migrated ones not yet adopted by an account: { url, account }, oldest first. */
+    hiddenMissing: () => [...hidden].filter(([, h]) => h.missingSince !== null || h.account === null).sort((a, b) => (a[1].missingSince === null ? -Infinity : a[1].missingSince) - (b[1].missingSince === null ? -Infinity : b[1].missingSince)).map(([url, h]) => ({ url, account: h.account })),
     onChange: (fn) => { listeners.push(fn); },
     onHiddenChange: (fn) => { hiddenListeners.push(fn); },
   };

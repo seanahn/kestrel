@@ -132,6 +132,27 @@ test('hidden urls load from globalState and are written back on change', async (
   ext.deactivate();
 });
 
+test('the old string-array kestrel.hidden loads, and the next stored value is the new format and round-trips', async () => {
+  ui.out.length = 0; ui.commands = {};
+  const w = world();
+  const ctx = context();
+  const u1 = 'https://github.com/acme/widgets/pull/1';
+  await ctx.globalState.update('kestrel.hidden', [u1]);
+  const api = ext.activate(ctx, { run: w.run, client: w.client, timers: w.timers, now: () => w.now });
+  await settle(); await settle();
+  api.tracker.hide('https://github.com/acme/api/pull/2');
+  const stored = ctx.globalState.get('kestrel.hidden');
+  assert.ok(stored.every((e) => e && typeof e === 'object' && typeof e.url === 'string' && 'missingSince' in e && 'account' in e));
+  assert.deepStrictEqual(stored.map((e) => e.url), [u1, 'https://github.com/acme/api/pull/2']);
+  assert.strictEqual(stored[0].account, 'octo-dev', 'adopted when its list returned it');
+  ext.deactivate();
+  const ctx2 = context();
+  await ctx2.globalState.update('kestrel.hidden', JSON.parse(JSON.stringify(stored)));
+  const api2 = ext.activate(ctx2, { run: w.run, client: w.client, timers: w.timers, now: () => w.now });
+  assert.deepStrictEqual(api2.tracker.hiddenEntries(), stored);
+  ext.deactivate();
+});
+
 test('the throttle note stays for every round the throttle lasts', async () => {
   ui.out.length = 0; ui.commands = {}; ui.config = {};
   const w = world();
