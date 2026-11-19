@@ -17,7 +17,7 @@ function rateError(message, retryAfterMs) {
   return Object.assign(new Error(message), { kind: 'rate', retryAfterMs });
 }
 
-function createSync({ accounts, client, tracker, now }) {
+function createSync({ accounts, client, tracker, now, onRound = () => {} }) {
   const caches = new Map();   // login -> Map(pr id -> { key, pr })
   const watched = new Set();  // urls to keep fetching until a list returns them
   const lastSeen = new Map(); // watched url -> last Pr fetched, kept in the rows when a fetch is skipped or fails
@@ -92,6 +92,7 @@ function createSync({ accounts, client, tracker, now }) {
         if (!r) continue;
         results.push({ login, prs: r.prs });
         rates.push(...r.rates);
+        onRound({ login, count: r.prs.length, cost: r.rates.reduce((sum, x) => sum + ((x && x.cost) || 0), 0) });
         for (const i of r.items) { watched.delete(i.url); lastSeen.delete(i.url); }
       }
       if (watched.size && results.length) {

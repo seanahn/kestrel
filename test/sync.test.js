@@ -17,7 +17,7 @@ const full = (it) => ({
 const RATE_OK = { remaining: 4000, resetAt: '2026-03-01T01:00:00Z', cost: 1 };
 const T0 = Date.parse('2026-03-01T00:00:00Z');
 
-function setup({ logins = ['octo-dev'], lists = {}, byUrl = {}, tokenFails = {}, rate = () => RATE_OK } = {}) {
+function setup({ logins = ['octo-dev'], lists = {}, byUrl = {}, tokenFails = {}, rate = () => RATE_OK, onRound } = {}) {
   const calls = { list: [], detail: [], tokens: [], byUrl: [] };
   const clock = { t: T0 };
   const state = { lists: { ...lists }, auth: {} };
@@ -46,7 +46,7 @@ function setup({ logins = ['octo-dev'], lists = {}, byUrl = {}, tokenFails = {},
     prByUrl: async (token, url) => { calls.byUrl.push([token, url]); if (state.byUrlError) throw state.byUrlError; return byUrl[url] ? full(byUrl[url]) : null; },
   };
   const tracker = createTracker({ now: () => clock.t });
-  const sync = createSync({ accounts, client, tracker, now: () => clock.t });
+  const sync = createSync({ accounts, client, tracker, now: () => clock.t, onRound });
   return { sync, tracker, calls, clock, state };
 }
 const nums = (tr) => tr.rows().map((r) => r.pr.number).sort();
@@ -243,4 +243,11 @@ test('a good account list clears the global note', async () => {
   tracker.setGlobalNote('old');
   await sync.run();
   assert.deepStrictEqual(tracker.notes(), []);
+});
+
+test('onRound reports each successful account with its PR count and summed cost', async () => {
+  const rounds = [];
+  const { sync } = setup({ logins: ['octo-dev', 'octo-work'], lists: { 'octo-dev': [item(1), item(2)], 'octo-work': [] }, onRound: (r) => rounds.push(r) });
+  await sync.run();
+  assert.deepStrictEqual(rounds, [{ login: 'octo-dev', count: 2, cost: 2 }, { login: 'octo-work', count: 0, cost: 1 }]);
 });
