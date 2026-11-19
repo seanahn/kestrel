@@ -64,14 +64,13 @@ So a quiet poll costs 1 point per account, as 101 estimated.
 
 ## The perch change
 
-`perch.insertText` lives in a separate repo, `/git/perch`, on the branch
-`feat/insert-text`: commits `1848b92` and `683e04b`. It isn't pushed and
-no PR is open.
+`perch.insertText` lives in a separate repo, `/git/perch`. Its two
+commits, `1848b92` and `683e04b`, were fast-forwarded onto perch's
+`main` and pushed on 2026-11-19, with no PR.
 
 ## Where it stands
 
-- PR: not opened yet. There is no remote. Nothing is pushed.
-- When there is a PR, put its number here.
+- No PR, by Sean's choice: master was pushed straight to github.com/seanahn/kestrel (public) on 2026-11-19. The perch change went straight to perch's main the same day (5597082..683e04b).
 
 ## Known gaps
 
