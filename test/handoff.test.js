@@ -74,3 +74,31 @@ test('noteMerged never throws when perch fails', async () => {
   ui.extraHandlers['perch.notePrMerged'] = () => { throw new Error('boom'); };
   assert.deepStrictEqual(await createHandoff(vscode).noteMerged('https://github.com/acme/widgets/pull/7'), { result: 'failed', error: 'boom' });
 });
+
+test('findSession and openSession go to perch when it has them', async () => {
+  const { vscode, ui } = install();
+  ui.extraCommands = ['perch.findPrSession', 'perch.openPrSession'];
+  ui.extraHandlers['perch.findPrSession'] = () => ({ session: 's1', cwd: '/w', transcript: '/t/s1.jsonl', host: 'devbox', created: true });
+  ui.extraHandlers['perch.openPrSession'] = () => 'resumed';
+  const h = createHandoff(vscode);
+  const url = 'https://github.com/acme/widgets/pull/7';
+  assert.deepStrictEqual(await h.findSession(url), { session: 's1', cwd: '/w', transcript: '/t/s1.jsonl', host: 'devbox', created: true });
+  assert.strictEqual(await h.openSession({ url, session: 's1' }), 'resumed');
+  assert.deepStrictEqual(ui.executed, [['perch.findPrSession', url], ['perch.openPrSession', { url, session: 's1' }]]);
+});
+
+test('without those perch commands, or when perch fails: no session, nothing opened', async () => {
+  const a = install();
+  a.ui.extraCommands = ['perch.insertText'];
+  const h = createHandoff(a.vscode);
+  assert.strictEqual(await h.findSession('https://github.com/acme/widgets/pull/7'), null);
+  assert.strictEqual(await h.openSession({ url: 'https://github.com/acme/widgets/pull/7' }), 'none');
+  assert.deepStrictEqual(a.ui.executed, []);
+  const b = install();
+  b.ui.extraCommands = ['perch.findPrSession', 'perch.openPrSession'];
+  b.ui.extraHandlers['perch.findPrSession'] = () => { throw new Error('x'); };
+  b.ui.extraHandlers['perch.openPrSession'] = () => { throw new Error('x'); };
+  const g = createHandoff(b.vscode);
+  assert.strictEqual(await g.findSession('https://github.com/acme/widgets/pull/7'), null);
+  assert.strictEqual(await g.openSession({ url: 'https://github.com/acme/widgets/pull/7' }), 'none');
+});

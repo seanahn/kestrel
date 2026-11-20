@@ -409,6 +409,36 @@ Clicking **merge**:
    click while a merge is in flight does nothing (the link shows
    "merging…"). Cancelling the confirm does nothing.
 
+## Where a PR was made (added 2026-11-20, Sean's request)
+
+Sean has two machines (a desktop and a remote dev pod) and several Claude chats on each. A row should say where its
+PR was made, and clicking it should open that chat rather than GitHub (`↗` stays GitHub).
+
+**Where the answer comes from, in order** (Sean chose 2, then 1):
+
+1. **A record on the PR.** A Claude Code PostToolUse hook, `hooks/pr-origin.js`, runs after each Bash call. When
+   the call was `gh pr create` and printed a PR URL, it adds `<!-- pr-origin: <base64 JSON> -->` to the PR's
+   description, with `host` (`KESTREL_MACHINE`, else the hostname), `session`, `cwd`, `transcript` and `at`.
+   - It returns at once and does the `gh pr view` / `gh pr edit` in a detached process, so Claude never waits on it.
+   - It never adds a second record, and logs to `~/.cache/kestrel/pr-origin.log`.
+   - kestrel already fetches each PR from GitHub, so the record reaches every window on every machine. The
+     detail query now asks for `body`; kestrel keeps only the parsed record (`pr.origin`), never the text.
+2. **This machine's transcripts.** For PRs with no record, kestrel asks perch (`perch.findPrSession`) in the
+   background as soon as the PR appears, one at a time. A miss is asked again after 10 minutes *(builder's call)*.
+
+**The tooltip** on a row: the full title, then "Made on {host} · Claude session {8 chars} · {cwd}", the
+transcript path and when it was recorded. A local find says "Found on this machine ({host})". With neither:
+"No Claude chat found for this PR".
+
+**A click on the line** (outside its links) calls `perch.openPrSession({ url, session, cwd, transcript })`:
+- perch switches to the tab holding that session, or resumes the session in a new tab in its own folder;
+- nothing is sent;
+- if this machine doesn't have the chat (it was made on the other machine, or never in Claude), or perch
+  isn't installed, the click opens the PR on GitHub.
+
+**Ready rows are green:** a row in state 9 (**merge**) gets the theme's inserted-line background as a tint
+*(builder's call)*.
+
 ## Telling the session a PR merged (added 2026-11-19, Sean's request)
 
 After GitHub confirms a merge from the panel, kestrel calls

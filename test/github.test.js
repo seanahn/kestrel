@@ -66,7 +66,7 @@ test('detailPrs batches 20 and maps one PR to the exact Pr', async () => {
   assert.strictEqual(f.calls[1].body.variables.ids.length, 5);
   assert.deepStrictEqual(r.prs, [{
     id: 'PR_7', url: 'https://github.com/acme/widgets/pull/7', number: 7, title: 'Add widget', repo: 'acme/widgets', account: '',
-    state: 'OPEN', author: 'octo-dev', isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
+    state: 'OPEN', author: 'octo-dev', origin: null, isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
     reviewDecision: 'REVIEW_REQUIRED',
     checks: [{ name: 'test', state: 'success' }, { name: 'ci/legacy', state: 'pending' }],
     reviews: [

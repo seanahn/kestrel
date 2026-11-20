@@ -9,6 +9,7 @@ const { createSync } = require('./sync');
 const { createPoller, pickInterval } = require('./poller');
 const { createHandoff } = require('./handoff');
 const { createMerger } = require('./merge');
+const { createLocalOrigins } = require('./origins');
 const { PanelProvider } = require('./panel');
 
 let current = null;
@@ -52,7 +53,8 @@ function activate(context, deps = {}) {
     },
     onUpdated: () => sync.fast(),
   });
-  panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger });
+  const origins = createLocalOrigins({ find: handoff.findSession, onChange: () => panel.render() });
+  panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger, origins });
 
   context.subscriptions.push(
     out,

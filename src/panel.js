@@ -2,14 +2,16 @@
 // The PRs panel (design 101, "The panel tab"): a webview view that draws the tracker's rows and routes the page's
 // clicks to the hand-off, the merger and the browser. The page never sends prompt text; prompts are looked up here by url.
 const crypto = require('crypto');
+const { originLines } = require('./origin');
 
 class PanelProvider {
-  constructor({ vscode, extensionUri, tracker, handoff, merger }) {
+  constructor({ vscode, extensionUri, tracker, handoff, merger, origins = null }) {
     this.vscode = vscode;
     this.extensionUri = extensionUri;
     this.tracker = tracker;
     this.handoff = handoff;
     this.merger = merger;
+    this.origins = origins;   // this machine's chat per PR, looked up in the background (design 101, "Where a PR was made")
     this.view = null;
     tracker.onChange(() => this.render());
   }
@@ -56,6 +58,8 @@ class PanelProvider {
       if (state.extra) this.handoff.send(state.extra.prompt);
     } else if (m.type === 'open') {
       this.open(row.pr.url);
+    } else if (m.type === 'chat') {
+      this.openChat(row.pr);
     } else if (m.type === 'seen') {
       this.tracker.markSeen(row.pr.url);
     }
@@ -63,10 +67,20 @@ class PanelProvider {
 
   open(url) { this.vscode.env.openExternal(this.vscode.Uri.parse(url)); }
 
+  /** The chat that made the PR (its own record first, else this machine's search), else the PR on GitHub. */
+  async openChat(pr) {
+    const o = pr.origin || (this.origins && this.origins.get(pr.url)) || null;
+    const spec = { url: pr.url };
+    if (o) for (const k of ['session', 'cwd', 'transcript']) if (o[k]) spec[k] = o[k];
+    const r = this.handoff.openSession ? await this.handoff.openSession(spec) : 'none';
+    if (r !== 'tab' && r !== 'resumed') this.open(pr.url);
+  }
+
   render() {
     const view = this.view;
     if (!view) return;
     const rows = this.tracker.rows();
+    if (this.origins) this.origins.want(rows.filter((r) => !r.pr.origin).map((r) => r.pr.url));
     const accounts = new Set(rows.map((r) => r.pr.account));
     const n = this.tracker.badge();
     // undefined, not 0: a hidden badge is cleared by unsetting it
@@ -97,6 +111,8 @@ class PanelProvider {
       busyText: busyKind === 'update' ? 'updating…' : busyKind ? 'merging…' : null,
       error: r.error || null,
       hidden: !!r.hidden,
+      ready: r.state.rule === 9,
+      origin: originLines(r.pr.origin || null, this.origins ? this.origins.get(r.pr.url) : null),
     };
   }
 }

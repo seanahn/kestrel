@@ -3,6 +3,7 @@
 // error mapping (a primary rate limit is kind 'rate', which the poller waits out). Every HTTP call goes through one
 // injectable request(token, body).
 const https = require('node:https');
+const { parseOrigin } = require('./origin');
 
 const ENDPOINT = 'https://api.github.com/graphql';
 const SEARCH = 'is:pr is:open author:@me archived:false';
@@ -28,7 +29,7 @@ const LIST_QUERY = `query($q: String!, $after: String) {
 }`;
 
 const DETAIL_FIELDS = `
-  id number title url isDraft updatedAt state author { login }
+  id number title body url isDraft updatedAt state author { login }
   repository { nameWithOwner squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
   mergeable mergeStateStatus reviewDecision headRefOid
   commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { pageInfo { hasNextPage } nodes {
@@ -128,7 +129,7 @@ function toPr(n) {
   const repo = n.repository || {};
   return {
     id: n.id, url: n.url, number: n.number, title: n.title, repo: repo.nameWithOwner, account: '',
-    state: n.state, author: (n.author && n.author.login) || null,
+    state: n.state, author: (n.author && n.author.login) || null, origin: parseOrigin(n.body),
     isDraft: n.isDraft, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable,
     mergeState: n.mergeStateStatus, reviewDecision: n.reviewDecision || null,
     checks: [

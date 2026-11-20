@@ -52,7 +52,7 @@ test('ready posts render with rows, in tracker order, and no prompt text', () =>
   assert.deepStrictEqual(m.notes, []);
   assert.strictEqual(m.rows.length, 2);
   const r = m.rows.find((x) => x.url === U(1));
-  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'busyText', 'dot', 'error', 'extraText', 'hidden', 'highlight', 'ref', 'text', 'title', 'url'].sort());
+  assert.deepStrictEqual(Object.keys(r).sort(), ['account', 'actionKind', 'busy', 'busyText', 'dot', 'error', 'extraText', 'hidden', 'highlight', 'origin', 'ready', 'ref', 'text', 'title', 'url'].sort());
   assert.strictEqual(r.ref, 'acme/widgets#1');
   assert.strictEqual(r.actionKind, 'prompt');
   assert.strictEqual(r.text, 'conflicts');
@@ -189,4 +189,41 @@ test('busy text names what is in flight', () => {
   const by = (n) => last().rows.find((x) => x.url === U(n));
   assert.strictEqual(by(1).busyText, 'updating…');
   assert.strictEqual(by(2).busyText, 'merging…');
+});
+
+test('rows carry ready and where the PR was made; a click opens the chat, else GitHub', async () => {
+  const { vscode, ui } = install();
+  delete require.cache[require.resolve('../src/panel')];
+  const { PanelProvider } = require('../src/panel');
+  const tracker = createTracker({ now: () => Date.parse('2026-03-01T00:00:00Z') });
+  const record = { host: 'desktop', session: 'sess-rec-1', cwd: '/home/dev/widgets', transcript: '/t/rec.jsonl', at: '2026-03-01T00:00:00.000Z' };
+  tracker.apply('octo-dev', [pr(1, { origin: record }), pr(2, blocked), pr(3)]);
+  const local = new Map([[U(3), { session: 'sess-loc-3', cwd: '/w3', transcript: '/t/loc.jsonl', host: 'devbox' }]]);
+  const wanted = [], opened = [];
+  const origins = { want: (urls) => { wanted.push(...urls); return Promise.resolve(); }, get: (u) => local.get(u) || null };
+  let answer = 'resumed';
+  const handoff = { send: async () => {}, openSession: async (spec) => { opened.push(spec); return answer; } };
+  const merger = { merge: async () => {}, update: async () => {}, busy: () => false, busyKind: () => null, updateFailed: () => false };
+  const panel = new PanelProvider({ vscode, extensionUri: vscode.Uri.file('/ext'), tracker, handoff, merger, origins });
+  ui.providers['kestrel.prs'] = panel;
+  const view = ui.resolveView();
+  view.webview._receive({ type: 'ready' });
+  const m = view.webview.posted[view.webview.posted.length - 1];
+  const by = (n) => m.rows.find((x) => x.url === U(n));
+  assert.strictEqual(by(1).ready, true);
+  assert.strictEqual(by(2).ready, false);
+  assert.deepStrictEqual(by(1).origin, ['Made on desktop · Claude session sess-rec · /home/dev/widgets', 'Transcript: /t/rec.jsonl', 'Recorded 2026-03-01 00:00 UTC']);
+  assert.deepStrictEqual(by(3).origin, ['Found on this machine (devbox) · Claude session sess-loc · /w3', 'Transcript: /t/loc.jsonl']);
+  assert.deepStrictEqual(by(2).origin, ['No Claude chat found for this PR (no record on the PR, none on this machine).']);
+  assert.deepStrictEqual([...new Set(wanted)].sort(), [U(2), U(3)].sort(), 'only PRs with no record are looked up locally');
+
+  view.webview._receive({ type: 'chat', url: U(1) });
+  await new Promise((r) => setImmediate(r));
+  assert.deepStrictEqual(opened[0], { url: U(1), session: 'sess-rec-1', cwd: '/home/dev/widgets', transcript: '/t/rec.jsonl' });
+  assert.deepStrictEqual(ui.opened, [], 'the chat opened: no browser');
+  answer = 'none';
+  view.webview._receive({ type: 'chat', url: U(2) });
+  await new Promise((r) => setImmediate(r));
+  assert.deepStrictEqual(opened[1], { url: U(2) });
+  assert.strictEqual(ui.opened.length, 1, 'no chat: GitHub instead');
 });

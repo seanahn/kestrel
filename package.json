@@ -89,7 +89,7 @@
     }
   },
   "scripts": {
-    "check": "for f in src/*.js media/*.js test/*.js; do [ -e \"$f\" ] || continue; node --check \"$f\" || exit 1; done",
+    "check": "for f in src/*.js media/*.js test/*.js hooks/*.js; do [ -e \"$f\" ] || continue; node --check \"$f\" || exit 1; done",
     "test": "node --test --test-force-exit --test-timeout=20000 test/*.test.js"
   },
   "devDependencies": {

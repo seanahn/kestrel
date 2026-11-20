@@ -16,7 +16,7 @@ function page() {
   const key = (k) => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
   return { w, d: w.document, posted, send, key };
 }
-const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null, hidden: false, busyText: null }, o);
+const row = (o) => Object.assign({ url: 'https://github.com/acme/widgets/pull/1', ref: 'acme/widgets#1', title: 'Add retry', account: 'octo-dev', text: 'merge', dot: 'green', actionKind: 'merge', extraText: null, highlight: false, busy: false, error: null, hidden: false, busyText: null, ready: false, origin: [] }, o);
 const render = (o) => Object.assign({ type: 'render', visible: true, notes: [], multiAccount: false, rows: [] }, o);
 const U = (n) => `https://github.com/acme/widgets/pull/${n}`;
 
@@ -30,7 +30,7 @@ test('rows in given order with texts', () => {
   assert.deepStrictEqual(rows.map((r) => r.querySelector('.title').textContent), ['Second', 'First']);
   assert.deepStrictEqual(rows.map((r) => r.querySelector('.action').textContent), ['conflicts', 'merge']);
   assert.ok(rows[0].querySelector('.dot').classList.contains('red'));
-  assert.strictEqual(rows[1].querySelector('.title').getAttribute('title'), 'First');
+  assert.strictEqual(rows[1].getAttribute('title'), 'First');
   assert.strictEqual(rows[0].querySelector('.account'), null);
   assert.ok(/\.title[^{]*\{[^}]*text-overflow:\s*ellipsis/.test(CSS));
 });
@@ -65,18 +65,19 @@ test('a row without an action has no action link', () => {
   const a = p.d.querySelector('.action');
   assert.strictEqual(a.textContent, 'checks 3/5');
   a.click();
-  assert.deepStrictEqual(p.posted, [{ type: 'ready' }, { type: 'open', url: U(1) }], 'plain status text is part of the line: it opens the PR');
+  assert.deepStrictEqual(p.posted, [{ type: 'ready' }, { type: 'chat', url: U(1) }], 'plain status text is part of the line: it opens the chat');
 });
 
-test('clicking the line, outside its links, opens the PR and selects the row', () => {
+test('clicking the line, outside its links, asks for the chat and selects the row', () => {
   const p = page();
   p.send(render({ rows: [row()] }));
   const line = p.d.querySelector('.title').closest('.row');
   p.d.querySelector('.title').click();
-  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'open', url: U(1) }]);
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'chat', url: U(1) }]);
   assert.ok(line.classList.contains('selected'));
   p.d.querySelector('.action').click();
-  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'open', url: U(1) }, { type: 'action', url: U(1) }], 'a link does only its own thing');
+  p.d.querySelector('.open').click();
+  assert.deepStrictEqual(p.posted.slice(1), [{ type: 'chat', url: U(1) }, { type: 'action', url: U(1) }, { type: 'open', url: U(1) }], 'a link does only its own thing; ↗ is GitHub');
 });
 
 test('Enter and o act on the selected row; arrows move', () => {
@@ -253,4 +254,20 @@ test('running rows get a spinner dot, a static ring with reduced motion', () => 
   assert.match(CSS, new RegExp(`@keyframes ${name}\\s*\\{[^}]*rotate`));
   const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\}\s*\}/.exec(CSS);
   assert.ok(reduced && /\.dot\.running\s*\{[^}]*animation:\s*none/.test(reduced[1] + '}'), 'reduced motion stops the spin');
+});
+
+test('the row tooltip is the title and where the PR was made', () => {
+  const p = page();
+  p.send(render({ rows: [row({ origin: ['Made on desktop · Claude session 3f2a9c1e · /home/dev/widgets', 'Transcript: /t/3f2a.jsonl'] })] }));
+  const line = p.d.querySelector('.row');
+  assert.strictEqual(line.getAttribute('title'), 'Add retry\nMade on desktop · Claude session 3f2a9c1e · /home/dev/widgets\nTranscript: /t/3f2a.jsonl');
+  assert.strictEqual(p.d.querySelector('.title').getAttribute('title'), null, 'one tooltip for the line');
+});
+
+test('a mergeable row is marked ready', () => {
+  const p = page();
+  p.send(render({ rows: [row({ ready: true }), row({ url: U(2), ref: 'acme/widgets#2', ready: false })] }));
+  const [a, b] = p.d.querySelectorAll('.row');
+  assert.ok(a.classList.contains('ready'));
+  assert.ok(!b.classList.contains('ready'));
 });

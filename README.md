@@ -13,7 +13,9 @@ agent's message box. It never sends it: you press Enter.
   can act on right now.
 - **Rows:** a status dot, `owner/repo #number`, the title, an action link,
   and `↗` to open the PR on github.com. Clicking anywhere else on the line
-  opens it too. With more than one account, a small
+  opens the Claude chat that made the PR, if perch can find it (see "Where a
+  PR was made"); otherwise it opens the PR on github.com too. A row that can
+  be merged now is tinted green. With more than one account, a small
   tag shows which one authored the PR.
 - **Changes stand out:** when a PR's state changes, its row moves to the top
   and is highlighted for a few seconds.
@@ -61,6 +63,38 @@ GitHub refuses (a conflict, say), its message shows on the row, and the
 link becomes **behind base: ask agent**, which hands the agent a prompt to
 update the branch locally. Your local checkout is now behind the PR
 branch, so pull before you push again.
+
+## Where a PR was made
+
+Hovering a row shows where the PR was made: the machine, the Claude Code
+session, its folder and its transcript. Clicking the row opens that chat in
+[perch](https://github.com/seanahn/perch): it switches to the tab if the
+chat is open, or resumes it in a new tab in its own folder. Nothing is sent.
+
+kestrel looks in two places, in this order:
+
+1. **A record on the PR itself.** The `hooks/pr-origin.js` Claude Code hook
+   adds a hidden `<!-- pr-origin: … -->` comment to a PR's description right
+   after Claude runs `gh pr create`. Because it's on GitHub, every window on
+   every machine sees it. Install it on each machine you open PRs from:
+
+   ```json
+   "hooks": { "PostToolUse": [ { "matcher": "Bash", "hooks": [
+     { "type": "command",
+       "command": "KESTREL_MACHINE=desktop node ~/.claude/hooks/pr-origin.js" } ] } ] }
+   ```
+
+   in `~/.claude/settings.json`, with the file copied to
+   `~/.claude/hooks/pr-origin.js`. `KESTREL_MACHINE` names the machine; the
+   hostname is used without it. The hook never blocks Claude, and logs to
+   `~/.cache/kestrel/pr-origin.log`.
+2. **This machine's transcripts.** For a PR with no record, perch searches
+   the last 30 days of Claude Code transcripts here, in the background as the
+   PR first appears, for the session that printed the PR's URL from
+   `gh pr create`.
+
+A chat on another machine can't be opened from this one: the tooltip says
+where it is, and a click opens the PR on GitHub.
 
 ## Merging
 

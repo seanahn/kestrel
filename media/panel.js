@@ -37,11 +37,11 @@
     for (const n of state.notes) nodes.push(el('div', 'note', n));
     if (!list.length) nodes.push(el('div', 'empty', 'No open pull requests.'));
     for (const r of list) {
-      const line = el('div', 'row' + (r.highlight ? ' fresh' : '') + (r.hidden ? ' hidden' : '') + (r.url === selectedUrl ? ' selected' : ''));
+      const line = el('div', 'row' + (r.ready ? ' ready' : '') + (r.highlight ? ' fresh' : '') + (r.hidden ? ' hidden' : '') + (r.url === selectedUrl ? ' selected' : ''));
       line.setAttribute('role', 'option'); line.dataset.url = r.url;
+      line.setAttribute('title', [r.title, ...(r.origin || [])].join('\n'));   // the title in full, and where the PR was made
       const main = el('div', 'line');
       main.append(el('span', 'dot ' + r.dot), el('span', 'ref', r.ref), el('span', 'title', r.title));
-      main.lastChild.setAttribute('title', r.title);
       if (state.multiAccount) main.append(el('span', 'account', r.account));
       const label = r.busy ? r.busyText || 'merging…' : r.text;
       main.append(r.actionKind && !r.busy ? link('action', label, () => post('action', r.url)) : el('span', 'action', label));
@@ -52,7 +52,7 @@
       line.append(main);
       if (r.error) line.append(el('div', 'error', r.error));
       line.addEventListener('mouseenter', () => { if (!state.visible && r.highlight) post('seen', r.url); });
-      line.addEventListener('click', () => { selectedUrl = r.url; mark(); post('open', r.url); });   // links stop their clicks; the rest of the line opens the PR
+      line.addEventListener('click', () => { selectedUrl = r.url; mark(); post('chat', r.url); });   // links stop their clicks; the rest of the line opens the PR's chat (↗ is GitHub)
       nodes.push(line);
     }
     const n = hiddenCount();
