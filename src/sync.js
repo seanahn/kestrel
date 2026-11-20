@@ -13,7 +13,7 @@ const MISSING_FETCHES = 5;   // hidden-but-missing PRs fetched by url per round
 const PR_URL = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/;
 
 const expired = (login) => `${login}: gh login expired, run \`gh auth login\``;
-const fingerprint = (i) => [i.updatedAt, i.headOid, i.mergeable, i.mergeState, i.isDraft, i.reviewDecision, i.rollup].join('|');
+const fingerprint = (i) => [i.updatedAt, i.headOid, i.mergeable, i.mergeState, i.isDraft, i.reviewDecision, i.rollup, i.canUpdateBranch].join('|');
 const pad = (n) => String(n).padStart(2, '0');
 
 function rateError(message, retryAfterMs, local = false) {

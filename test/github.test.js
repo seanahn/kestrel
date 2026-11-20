@@ -28,8 +28,9 @@ test('listPrs maps fixture fields to ListItem and sends the search query', async
   const r = await createClient({ request: f.request }).listPrs('tok');
   assert.deepStrictEqual(r.items, [{
     id: 'PR_2', url: 'https://github.com/acme/api/pull/2', updatedAt: '2026-01-02T00:00:00Z', headOid: 'oid2',
-    mergeable: 'UNKNOWN', mergeState: 'UNKNOWN', isDraft: true, reviewDecision: 'REVIEW_REQUIRED', rollup: null,
+    mergeable: 'UNKNOWN', canUpdateBranch: false, mergeState: 'UNKNOWN', isDraft: true, reviewDecision: 'REVIEW_REQUIRED', rollup: null,
   }]);
+  assert.match(f.calls[0].body.query, /viewerCanUpdateBranch/);
   assert.deepStrictEqual(r.rateLimit, { remaining: 4990, resetAt: '2026-01-01T01:00:00Z', cost: 1 });
   assert.strictEqual(f.calls[0].token, 'tok');
   assert.strictEqual(f.calls[0].body.variables.q, 'is:pr is:open author:@me archived:false');
@@ -66,7 +67,7 @@ test('detailPrs batches 20 and maps one PR to the exact Pr', async () => {
   assert.strictEqual(f.calls[1].body.variables.ids.length, 5);
   assert.deepStrictEqual(r.prs, [{
     id: 'PR_7', url: 'https://github.com/acme/widgets/pull/7', number: 7, title: 'Add widget', repo: 'acme/widgets', account: '',
-    state: 'OPEN', author: 'octo-dev', origin: null, isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
+    state: 'OPEN', author: 'octo-dev', origin: null, canUpdateBranch: false, isDraft: false, updatedAt: '2026-01-05T00:00:00Z', headOid: 'head7', mergeable: 'MERGEABLE', mergeState: 'BLOCKED',
     reviewDecision: 'REVIEW_REQUIRED',
     checks: [{ name: 'test', state: 'success' }, { name: 'ci/legacy', state: 'pending' }],
     reviews: [

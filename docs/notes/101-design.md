@@ -110,12 +110,17 @@ the PR's latest commit.
 | 1 | Draft | "draft" (dim) | puts "PR {ref} is a draft; check whether it is ready to mark ready for review" in the agent box |
 | 2 | Merge conflict (`mergeable: CONFLICTING`) | "conflicts" | prompt: "resolve the merge conflicts on PR {ref} ({url})" |
 | 3 | Any check on head finished as failure, timed-out, cancelled, or action-required | "CI failed: {first failed check name}" (+ "and N more") | prompt: "check the failing `{name}` check on PR {ref} ({url})" |
-| 4 | Review bot summary on head has blockers | "{n} blocker(s)" | prompt: "check the blocker comments on PR {ref} ({url})" |
 | 5 | A reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`), unless every review requesting changes is on an older commit while checks still run on the head: then rule 6 *(Sean, 2026-11-19: a re-review is under way and will replace it)* | "changes requested" | prompt: "check the requested changes on PR {ref} ({url})" |
 | 6 | Checks still pending or queued on head, or GitHub hasn't computed mergeability yet (`UNKNOWN`) | "checks {done}/{total}" spinner | nothing |
-| 7 | Branch behind base and the repo requires it up to date (`mergeStateStatus: BEHIND`) | "behind base" | updates the branch in place (see "Updating a branch"); after GitHub refuses, prompt: "update PR {ref} with its base branch ({url})" |
-| 8 | Blocked for another reason (`BLOCKED`, e.g. required review missing) | "blocked: needs review" or the reason GitHub gives | opens the PR in the browser |
+| 7 | Behind base and that blocks it: `mergeStateStatus: BEHIND`, or `BLOCKED` while GitHub says the branch can be updated (`viewerCanUpdateBranch`) | "update branch" | updates the branch in place (see "Updating a branch"); after GitHub refuses, "update branch: ask agent", prompt: "update PR {ref} with its base branch ({url})" |
+| 4 | The review bot's summary on head lists approval blockers: reasons it may not approve, such as a control path, not code to fix | "needs human review" (dim; not in the badge) | opens the PR on GitHub; the tooltip lists the bot's reasons |
+| 8 | Blocked for another reason (`BLOCKED`) | "needs human review" when a review is required (`REVIEW_REQUIRED`), else "blocked" | opens the PR on GitHub |
 | 9 | Mergeable (`CLEAN`, or `UNSTABLE`/`HAS_HOOKS` with no failures by rule 3) | **merge**, plus "{n} findings" when the review bot found non-blocking findings | merge (see "Merging"); the findings text is a second link with prompt "check the findings on PR {ref} ({url})" |
+
+Rules are checked in table order. Rule 7 comes before rule 4 so a PR that is both behind and waiting for a
+review shows "update branch" first (Sean, 2026-11-20). Rule 4 used to read "{n} blocker(s)" with an agent
+prompt; in practice the bot's blockers are reasons it may not approve, which no code change clears, so it now
+says "needs human review", links to GitHub, and doesn't count in the badge (Sean, 2026-11-20).
 
 `{ref}` is `owner/repo#number`. Prompt wording is the builder's call within
 this shape. Each prompt includes the repo, the number and the URL, so an

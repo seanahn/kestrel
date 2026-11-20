@@ -7,7 +7,7 @@ const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
 const marker = (json) => `Looks fine.\n<!-- pr-auto-review-findings: ${b64(json)} -->`;
 
 test('parses blocker and finding counts', () => {
-  assert.deepStrictEqual(parseSummary(marker('{"blockers":[{"a":1}],"findings":[1,2]}')), { blockers: 1, findings: 2 });
+  assert.deepStrictEqual(parseSummary(marker('{"blockers":[{"a":1}],"findings":[1,2]}')), { blockers: 1, findings: 2, reasons: [] });
 });
 
 test('no marker gives null', () => {
@@ -23,15 +23,15 @@ test('bad base64 or bad JSON gives null', () => {
 });
 
 test('missing arrays count as 0', () => {
-  assert.deepStrictEqual(parseSummary(marker('{"blockers":[]}')), { blockers: 0, findings: 0 });
-  assert.deepStrictEqual(parseSummary(marker('{}')), { blockers: 0, findings: 0 });
+  assert.deepStrictEqual(parseSummary(marker('{"blockers":[]}')), { blockers: 0, findings: 0, reasons: [] });
+  assert.deepStrictEqual(parseSummary(marker('{}')), { blockers: 0, findings: 0, reasons: [] });
 });
 
 const rev = (n, oid, at) => ({ body: marker(`{"blockers":${JSON.stringify(Array(n).fill(0))}}`), commitOid: oid, submittedAt: at });
 
 test('summaryForHead uses the newest marked review when it is on head', () => {
   const reviews = [rev(3, 'old', '2026-01-01T00:00:00Z'), rev(1, 'head', '2026-01-02T00:00:00Z'), { body: 'plain', commitOid: 'head', submittedAt: '2026-01-03T00:00:00Z' }];
-  assert.deepStrictEqual(summaryForHead(reviews, 'head'), { blockers: 1, findings: 0 });
+  assert.deepStrictEqual(summaryForHead(reviews, 'head'), { blockers: 1, findings: 0, reasons: [] });
 });
 
 test('summaryForHead is null when the newest marked review is not on head, even if an older one is', () => {

@@ -102,7 +102,7 @@ class PanelProvider {
       ref: `${r.pr.repo}#${r.pr.number}`,
       title: r.pr.title,
       account: r.pr.account,
-      text: handBack ? 'behind base: ask agent' : r.state.text,
+      text: handBack ? 'update branch: ask agent' : r.state.text,
       dot: r.state.dot,
       actionKind: handBack ? 'prompt' : r.state.action ? r.state.action.kind : null,
       extraText: r.state.extra ? r.state.extra.text : null,
@@ -112,7 +112,7 @@ class PanelProvider {
       error: r.error || null,
       hidden: !!r.hidden,
       ready: r.state.rule === 9,
-      origin: originLines(r.pr.origin || null, this.origins ? this.origins.get(r.pr.url) : null),
+      origin: [...(r.state.detail || []), ...originLines(r.pr.origin || null, this.origins ? this.origins.get(r.pr.url) : null)],
     };
   }
 }

@@ -21,7 +21,7 @@ const LIST_QUERY = `query($q: String!, $after: String) {
   search(query: $q, type: ISSUE, first: ${PAGE}, after: $after) {
     pageInfo { hasNextPage endCursor }
     nodes { ... on PullRequest {
-      id url updatedAt headRefOid mergeable mergeStateStatus isDraft reviewDecision
+      id url updatedAt headRefOid mergeable mergeStateStatus isDraft reviewDecision viewerCanUpdateBranch
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     } }
   }
@@ -29,7 +29,7 @@ const LIST_QUERY = `query($q: String!, $after: String) {
 }`;
 
 const DETAIL_FIELDS = `
-  id number title body url isDraft updatedAt state author { login }
+  id number title body url isDraft updatedAt state author { login } viewerCanUpdateBranch
   repository { nameWithOwner squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed }
   mergeable mergeStateStatus reviewDecision headRefOid
   commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 50) { pageInfo { hasNextPage } nodes {
@@ -117,7 +117,7 @@ function toListItem(n) {
   const commit = nodesOf(n.commits)[0];
   const rollup = commit && commit.commit && commit.commit.statusCheckRollup;
   return {
-    id: n.id, url: n.url, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable,
+    id: n.id, url: n.url, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable, canUpdateBranch: n.viewerCanUpdateBranch === true,
     mergeState: n.mergeStateStatus, isDraft: n.isDraft, reviewDecision: n.reviewDecision || null,
     rollup: (rollup && rollup.state) || null,
   };
@@ -129,7 +129,7 @@ function toPr(n) {
   const repo = n.repository || {};
   return {
     id: n.id, url: n.url, number: n.number, title: n.title, repo: repo.nameWithOwner, account: '',
-    state: n.state, author: (n.author && n.author.login) || null, origin: parseOrigin(n.body),
+    state: n.state, author: (n.author && n.author.login) || null, origin: parseOrigin(n.body), canUpdateBranch: n.viewerCanUpdateBranch === true,
     isDraft: n.isDraft, updatedAt: n.updatedAt, headOid: n.headRefOid, mergeable: n.mergeable,
     mergeState: n.mergeStateStatus, reviewDecision: n.reviewDecision || null,
     checks: [

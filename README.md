@@ -5,7 +5,7 @@ Terminal. Each row says whether to merge, wait or act, and keeps itself
 current while CI and reviewers run.
 
 kestrel has no AI in it. When a row needs action, clicking its reason puts
-a prompt such as "check the blocker comments on PR acme/widgets#42" in an
+a prompt such as "check the requested changes on PR acme/widgets#42" in an
 agent's message box. It never sends it: you press Enter.
 
 - **The PRs tab:** every open PR you authored, across every repo and every
@@ -38,11 +38,11 @@ The first line that matches decides the row.
 | draft | The PR is a draft | prompt: check whether it is ready for review |
 | conflicts | It has merge conflicts | prompt: resolve them |
 | CI failed: name | A check on the latest commit failed, timed out, was cancelled or needs action | prompt: check that check |
-| N blockers | The review bot's summary for the latest commit lists blockers | prompt: check the blocker comments |
 | changes requested | A reviewer requested changes. If that review is on an older commit and checks are still running on the new one, the row shows the checks instead, until the new review lands | prompt: check the requested changes |
 | checks done/total | Checks are still running, or GitHub is still working out mergeability | nothing |
-| behind base | The branch must be up to date with its base and isn't | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
-| blocked: reason | Blocked for another reason, such as a missing required review | opens the PR |
+| update branch | The branch is behind its base, and that blocks the merge (or may) | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
+| needs human review | The review bot reviewed it but may not approve it (its reasons are in the tooltip), or a person's review is required | opens the PR on GitHub |
+| blocked | Blocked for another reason | opens the PR |
 | **merge** | GitHub would accept the merge | merges, after a confirm |
 
 A failed check is shown even while other checks are still running, so you
@@ -50,17 +50,17 @@ can start on it at once. Next to **merge** (and next to most other states),
 a second link shows "N findings" or "N unresolved comments"; clicking it
 puts a prompt about them in the agent's box.
 
-The badge counts conflicts, failed CI, blockers, changes requested, behind
-base and mergeable. Drafts, running and blocked-on-someone-else don't count.
+The badge counts conflicts, failed CI, changes requested, update branch
+and mergeable. Drafts, running and blocked-on-someone-else don't count.
 
 ## Updating a branch
 
-Clicking **behind base** merges the base branch into the PR branch on
+Clicking **update branch** merges the base branch into the PR branch on
 GitHub, the same as its **Update branch** button. There's no confirm. The
 link reads "updating…" meanwhile. GitHub refuses if a push landed after the
 row was drawn. The update is a push, so CI and reviewers run again. If
 GitHub refuses (a conflict, say), its message shows on the row, and the
-link becomes **behind base: ask agent**, which hands the agent a prompt to
+link becomes **update branch: ask agent**, which hands the agent a prompt to
 update the branch locally. Your local checkout is now behind the PR
 branch, so pull before you push again.
 
@@ -109,15 +109,18 @@ error, say) is never retried: kestrel looks again on the next poll.
 ## Review bot summaries
 
 If an automated reviewer posts its summary as a PR review, kestrel can show
-its blocker and finding counts. The review body must contain a hidden HTML
+its findings and why it may not approve. The review body must contain a hidden HTML
 comment:
 
 ```
 <!-- pr-auto-review-findings: <base64 of JSON> -->
 ```
 
-where the JSON is `{"blockers": [ ... ], "findings": [ ... ]}`. kestrel
-only counts the entries; it doesn't show them.
+where the JSON is `{"blockers": [ ... ], "findings": [ ... ]}`.
+`blockers` are reasons the bot may not approve (strings, such as "touches
+control paths"): a row with any reads **needs human review**, with the
+reasons in its tooltip. `findings` are counted ("N findings" next to
+**merge**); their contents aren't shown.
 
 - kestrel reads the newest review that has the marker.
 - The summary counts only if the review is on the PR's **head commit**. A

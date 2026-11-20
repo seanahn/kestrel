@@ -163,11 +163,11 @@ test('hide and unhide messages call the tracker; rows carry hidden', () => {
   assert.strictEqual(last().rows.find((x) => x.url === U(1)).hidden, false);
 });
 
-test('behind base updates in place; after a refusal it hands the agent the prompt', () => {
+test('update branch updates in place; after a refusal it hands the agent the prompt', () => {
   const { view, updated, sent, failedSet, panel, last } = setup([pr(1, { mergeState: 'BEHIND' })]);
   const r = last().rows[0];
   assert.strictEqual(r.actionKind, 'update');
-  assert.strictEqual(r.text, 'behind base');
+  assert.strictEqual(r.text, 'update branch');
   view.webview._receive({ type: 'action', url: U(1) });
   assert.deepStrictEqual(updated, [U(1)]);
   assert.deepStrictEqual(sent, []);
@@ -175,7 +175,7 @@ test('behind base updates in place; after a refusal it hands the agent the promp
   panel.render();
   const f = last().rows[0];
   assert.strictEqual(f.actionKind, 'prompt');
-  assert.strictEqual(f.text, 'behind base: ask agent');
+  assert.strictEqual(f.text, 'update branch: ask agent');
   view.webview._receive({ type: 'action', url: U(1) });
   assert.deepStrictEqual(updated, [U(1)]);
   assert.deepStrictEqual(sent, ['update PR acme/widgets#1 with its base branch (https://github.com/acme/widgets/pull/1)']);
@@ -226,4 +226,9 @@ test('rows carry ready and where the PR was made; a click opens the chat, else G
   await new Promise((r) => setImmediate(r));
   assert.deepStrictEqual(opened[1], { url: U(2) });
   assert.strictEqual(ui.opened.length, 1, 'no chat: GitHub instead');
+});
+
+test('a row\'s detail lines go in its tooltip, before where it was made', () => {
+  const { last } = setup([pr(1, { mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' })]);
+  assert.deepStrictEqual(last().rows[0].origin.slice(0, 1), ['A review is required before merging.']);
 });

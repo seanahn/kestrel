@@ -2,7 +2,8 @@
 // Row state (design 101, "States"): the first matching rule of the state table decides the row.
 const { summaryForHead } = require('./reviewSummary');
 
-const ACTIONABLE_RULES = [2, 3, 4, 5, 7, 9];
+// 4 (needs human review) waits on someone else, as 8 does: not in the badge.
+const ACTIONABLE_RULES = [2, 3, 5, 7, 9];
 const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 /** The "+ N findings" / "+ N unresolved comments" chip beside the main state, or null. */
@@ -22,9 +23,9 @@ function rowState(pr) {
   const checks = pr.checks || [];
   const failed = checks.filter((c) => c.state === 'failure');
   const summary = summaryForHead(pr.reviews, pr.headOid);
-  const out = (rule, key, text, dot, action, withExtra = true) => ({
+  const out = (rule, key, text, dot, action, withExtra = true, detail = []) => ({
     rule, key, text, dot, actionable: ACTIONABLE_RULES.includes(rule), action,
-    extra: withExtra ? extraFor(pr, summary, ref) : null,
+    extra: withExtra ? extraFor(pr, summary, ref) : null, detail,
   });
   const ask = (p) => ({ kind: 'prompt', prompt: p });
 
@@ -39,10 +40,6 @@ function rowState(pr) {
     return out(3, `3:${failed[0].name}`, `CI failed: ${failed[0].name}${more > 0 ? ` and ${more} more` : ''}`, 'red',
       ask(`check the failing \`${failed[0].name}\` check on PR ${ref} (${pr.url})`));
   }
-  if (summary && summary.blockers > 0) {
-    return out(4, `4:${summary.blockers}`, plural(summary.blockers, 'blocker'), 'red',
-      ask(`check the blocker comments on PR ${ref} (${pr.url})`), false);
-  }
   const running = checks.some((c) => c.state === 'pending');
   // A request for changes on an older commit is about to be replaced when checks (the reviewer among them) are still
   // running on the head: show them running until the new review lands (design 101, "States", rule 5).
@@ -55,11 +52,19 @@ function rowState(pr) {
     const done = checks.filter((c) => c.state !== 'pending').length;
     return out(6, '6', checks.length ? `checks ${done}/${checks.length}` : 'waiting for GitHub', 'running', null, false);
   }
-  if (pr.mergeState === 'BEHIND') {
-    return out(7, '7', 'behind base', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${pr.url})` });
+  // Behind, and that's what blocks it or may: update first (Sean, 2026-11-20), even before a missing review.
+  if (pr.mergeState === 'BEHIND' || (pr.mergeState === 'BLOCKED' && pr.canUpdateBranch === true)) {
+    return out(7, '7', 'update branch', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${pr.url})` });
+  }
+  // The review bot's blockers are reasons it may not approve (a control path, a dependency change), not code to
+  // fix: the PR waits for a person's review.
+  if (summary && summary.blockers > 0) {
+    return out(4, '4', 'needs human review', 'dim', { kind: 'open' }, false,
+      summary.reasons.length ? summary.reasons.map((r) => `The auto-review may not approve: ${r}`) : ['The auto-review may not approve this PR.']);
   }
   if (!['CLEAN', 'UNSTABLE', 'HAS_HOOKS'].includes(pr.mergeState)) {
-    return out(8, '8', pr.reviewDecision === 'REVIEW_REQUIRED' ? 'blocked: needs review' : 'blocked', 'dim', { kind: 'open' });
+    if (pr.reviewDecision === 'REVIEW_REQUIRED') return out(8, '8', 'needs human review', 'dim', { kind: 'open' }, true, ['A review is required before merging.']);
+    return out(8, '8', 'blocked', 'dim', { kind: 'open' });
   }
   return out(9, '9', 'merge', 'green', { kind: 'merge' });
 }

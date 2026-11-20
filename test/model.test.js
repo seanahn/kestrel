@@ -27,15 +27,16 @@ test('state table', () => {
     [2, pr({ mergeable: 'CONFLICTING' }), 'conflicts', 'red', prompt(`resolve the merge conflicts on PR ${ref} (${url})`)],
     [3, pr({ checks: [{ name: 'test', state: 'failure' }] }), 'CI failed: test', 'red', prompt(`check the failing \`test\` check on PR ${ref} (${url})`)],
     [3, pr({ checks: [{ name: 'test', state: 'failure' }, { name: 'lint', state: 'failure' }, { name: 'a', state: 'success' }] }), 'CI failed: test and 1 more', 'red', prompt(`check the failing \`test\` check on PR ${ref} (${url})`)],
-    [4, pr({ reviews: [summary(1, 0)] }), '1 blocker', 'red', prompt(`check the blocker comments on PR ${ref} (${url})`)],
-    [4, pr({ reviews: [summary(2, 0)] }), '2 blockers', 'red', prompt(`check the blocker comments on PR ${ref} (${url})`)],
+    [4, pr({ reviews: [summary(1, 0)] }), 'needs human review', 'dim', { kind: 'open' }],
+    [4, pr({ reviews: [summary(2, 0)], mergeState: 'BLOCKED' }), 'needs human review', 'dim', { kind: 'open' }],
     [5, pr({ reviewDecision: 'CHANGES_REQUESTED' }), 'changes requested', 'red', prompt(`check the requested changes on PR ${ref} (${url})`)],
     [6, pr({ checks: [{ name: 'a', state: 'success' }, { name: 'b', state: 'pending' }, { name: 'c', state: 'pending' }] }), 'checks 1/3', 'running', null],
     [6, pr({ mergeable: 'UNKNOWN', checks: [] }), 'waiting for GitHub', 'running', null],
     [6, pr({ mergeState: 'UNKNOWN' }), 'checks 1/1', 'running', null],
-    [7, pr({ mergeState: 'BEHIND' }), 'behind base', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${url})` }],
+    [7, pr({ mergeState: 'BEHIND' }), 'update branch', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${url})` }],
+    [7, pr({ mergeState: 'BLOCKED', canUpdateBranch: true }), 'update branch', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${url})` }],
     [8, pr({ mergeState: 'BLOCKED' }), 'blocked', 'dim', { kind: 'open' }],
-    [8, pr({ mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' }), 'blocked: needs review', 'dim', { kind: 'open' }],
+    [8, pr({ mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' }), 'needs human review', 'dim', { kind: 'open' }],
     [8, pr({ mergeState: 'DIRTY' }), 'blocked', 'dim', { kind: 'open' }],
     [9, pr(), 'merge', 'green', { kind: 'merge' }],
     [9, pr({ mergeState: 'UNSTABLE' }), 'merge', 'green', { kind: 'merge' }],
@@ -83,7 +84,7 @@ test('progress is not part of the key', () => {
 test('key differs with rule or reason', () => {
   const f = (name) => rowState(pr({ checks: [{ name, state: 'failure' }] })).key;
   assert.notStrictEqual(f('test'), f('lint'));
-  assert.notStrictEqual(rowState(pr({ reviews: [summary(1, 0)] })).key, rowState(pr({ reviews: [summary(2, 0)] })).key);
+  assert.strictEqual(rowState(pr({ reviews: [summary(1, 0)] })).key, rowState(pr({ reviews: [summary(2, 0)] })).key, 'a different count of approval blockers is still the same wait');
   assert.notStrictEqual(rowState(pr()).key, rowState(pr({ mergeState: 'BEHIND' })).key);
   assert.strictEqual(typeof rowState(pr()).key, 'string');
 });
@@ -116,7 +117,7 @@ test('extra on other rules', () => {
 });
 
 test('actionable is true exactly for ACTIONABLE_RULES', () => {
-  assert.deepStrictEqual(ACTIONABLE_RULES, [2, 3, 4, 5, 7, 9]);
+  assert.deepStrictEqual(ACTIONABLE_RULES, [2, 3, 5, 7, 9]);
   const prs = [pr({ isDraft: true }), pr({ mergeable: 'CONFLICTING' }), pr({ checks: [{ name: 't', state: 'failure' }] }),
     pr({ reviews: [summary(1, 0)] }), pr({ reviewDecision: 'CHANGES_REQUESTED' }), pr({ checks: [{ name: 't', state: 'pending' }] }),
     pr({ mergeState: 'BEHIND' }), pr({ mergeState: 'BLOCKED' }), pr()];
@@ -140,4 +141,25 @@ test('changes requested on an older commit yields to checks still running on the
   assert.strictEqual(rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [stale], checks: [{ name: 'test', state: 'success' }] })).rule, 5);
   // no review states known (a person's review fetched without state): keep changes requested
   assert.strictEqual(rowState(pr({ reviewDecision: 'CHANGES_REQUESTED', reviews: [], checks: running })).rule, 5);
+});
+
+test('blocked and behind: update branch comes before needs human review', () => {
+  const both = rowState(pr({ reviews: [summary(1, 0)], mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED', canUpdateBranch: true }));
+  assert.strictEqual(both.rule, 7);
+  assert.strictEqual(both.text, 'update branch');
+  assert.strictEqual(rowState(pr({ reviews: [summary(1, 0)], mergeState: 'BEHIND' })).rule, 7);
+  // a CLEAN PR that is behind but not required to be up to date is still mergeable
+  assert.strictEqual(rowState(pr({ canUpdateBranch: true })).rule, 9);
+});
+
+test('needs human review waits on someone else: not in the badge, reasons in the detail', () => {
+  assert.ok(!ACTIONABLE_RULES.includes(4));
+  assert.ok(ACTIONABLE_RULES.includes(7));
+  const body = `ok\n<!-- pr-auto-review-findings: ${b64(JSON.stringify({ blockers: ['touches control paths: `.github/x.py`'], findings: [] }))} -->`;
+  const s = rowState(pr({ reviews: [{ body, state: 'COMMENTED', commitOid: 'head1', submittedAt: '2026-01-02T00:00:00Z' }] }));
+  assert.strictEqual(s.rule, 4);
+  assert.strictEqual(s.actionable, false);
+  assert.deepStrictEqual(s.detail, ['The auto-review may not approve: touches control paths: `.github/x.py`']);
+  assert.deepStrictEqual(rowState(pr({ mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' })).detail, ['A review is required before merging.']);
+  assert.deepStrictEqual(rowState(pr()).detail, []);
 });
