@@ -10,6 +10,7 @@ const { createPoller, pickInterval } = require('./poller');
 const { createHandoff } = require('./handoff');
 const { createMerger } = require('./merge');
 const { createLocalOrigins } = require('./origins');
+const { createMergeWatch } = require('./mergedElsewhere');
 const { PanelProvider } = require('./panel');
 
 let current = null;
@@ -53,6 +54,11 @@ function activate(context, deps = {}) {
     },
     onUpdated: () => sync.fast(),
   });
+  const mergeWatch = createMergeWatch({
+    prByUrl: (token, url) => client.prByUrl(token, url), tokenFor: sync.tokenFor, noteMerged: handoff.noteMerged,
+    log: (line) => log(`${new Date(now()).toISOString()} ${line}`),
+  });
+  tracker.onLeft((rows) => { mergeWatch.handle(rows); });
   const origins = createLocalOrigins({ find: handoff.findSession, onChange: () => panel.render() });
   panel = new PanelProvider({ vscode, extensionUri: context.extensionUri, tracker, handoff, merger, origins });
 

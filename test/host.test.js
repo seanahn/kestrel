@@ -229,3 +229,27 @@ test('merging a watched PR unwatches it', async () => {
   assert.ok(!api.tracker.rows().some((r) => r.pr.url === url));
   ext.deactivate();
 });
+
+test('a PR merged on GitHub leaves the list and perch is told; a closed one is not', async () => {
+  const { w } = await boot();
+  ui.extraCommands = ['perch.notePrMerged'];
+  const noted = [];
+  ui.extraHandlers['perch.notePrMerged'] = (url) => { noted.push(url); return { result: 'background' }; };
+  const merged = lists['tok-octo-dev'][0];
+  const closed = lists['tok-octo-work'][0];
+  w.client.prByUrl = async (token, url) => { w.byUrl.push([token, url]); return { ...(url === merged.url ? merged : closed), state: url === merged.url ? 'MERGED' : 'CLOSED' }; };
+  const keep = { dev: lists['tok-octo-dev'], work: lists['tok-octo-work'] };
+  lists['tok-octo-dev'] = []; lists['tok-octo-work'] = [];
+  try {
+    await ui.commands['kestrel.refresh']();
+    for (let i = 0; i < 6; i++) await settle();
+    assert.deepStrictEqual(w.byUrl.map((c) => c[1]).sort(), [closed.url, merged.url].sort());
+    assert.deepStrictEqual(w.byUrl.find((c) => c[1] === merged.url)[0], 'tok-octo-dev', 'looked up with its own account');
+    assert.deepStrictEqual(noted, [merged.url]);
+    assert.ok(ui.out.some((l) => l.includes(`${merged.url} was merged outside kestrel; perch: background`)), ui.out.join('\n'));
+  } finally {
+    lists['tok-octo-dev'] = keep.dev; lists['tok-octo-work'] = keep.work;
+    ui.extraCommands = []; delete ui.extraHandlers['perch.notePrMerged'];
+    ext.deactivate();
+  }
+});

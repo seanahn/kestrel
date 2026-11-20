@@ -106,6 +106,10 @@ after the row was drawn is refused, and kestrel re-checks the row after
 your confirm. A merge whose outcome kestrel couldn't confirm (a network
 error, say) is never retried: kestrel looks again on the next poll.
 
+A PR merged elsewhere (on GitHub, by you or a reviewer) leaves the list on
+the next poll. kestrel checks whether it was merged rather than closed, and
+if so tells perch (`perch.notePrMerged`), the same as a merge from the panel.
+
 ## Review bot summaries
 
 If an automated reviewer posts its summary as a PR review, kestrel can show

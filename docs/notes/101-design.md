@@ -445,6 +445,21 @@ transcript path and when it was recorded. A local find says "Found on this machi
 **Ready rows are green:** a row in state 9 (**merge**) gets the theme's inserted-line background as a tint
 *(builder's call)*.
 
+## Merged elsewhere (added 2026-11-20, Sean's request)
+
+A PR merged outside kestrel (on GitHub, by Sean or a reviewer) leaves the list on the next poll, like a closed one.
+Its session should hear about it just as for a merge from the panel.
+
+- The tracker reports rows that a complete, successful result for their account no longer has (`onLeft`). It
+  doesn't report rows dropped because a login expired, kept after a failure, or removed by a merge from the panel.
+- For each, one at a time, kestrel asks GitHub (`resource(url:)`, with that row's account token) whether it was
+  merged. Only `MERGED` goes on, to the same `perch.notePrMerged`; a closed PR is left alone. A failed lookup is
+  logged and dropped, never retried.
+- Every window on a machine sees the PR leave. perch claims each noted merge with a file per PR next to Claude
+  Code's projects folder (`perch-noted-merges/`, created only if absent), so the first window notes it and the
+  others get `duplicate`. A background run that fails releases its claim, so a later try can note it.
+- A PR merged while no window was open isn't seen: kestrel starts by listing what is open now.
+
 ## Telling the session a PR merged (added 2026-11-19, Sean's request)
 
 After GitHub confirms a merge from the panel, kestrel calls

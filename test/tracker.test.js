@@ -403,3 +403,17 @@ test('a migrated hide is adopted by the account whose list returns it, whatever 
   tr.apply('octo-work', []);
   assert.deepStrictEqual(tr.hiddenUrls(), [], 'once adopted, its own account judges it');
 });
+
+test('onLeft reports rows a complete result no longer has, with their account; not for drop, fail or remove', () => {
+  const tr = createTracker({ now: () => 1000 });
+  const left = [];
+  tr.onLeft((rows) => left.push(...rows.map((r) => [r.pr.url, r.pr.account])));
+  tr.apply('octo-dev', [pr(1), pr(2)]);
+  tr.apply('octo-dev', [pr(1)]);
+  assert.deepStrictEqual(left, [[pr(2).url, 'octo-dev']]);
+  tr.fail('octo-dev', 'x');
+  tr.remove(pr(1).url);
+  tr.apply('octo-work', [pr(3, { account: 'octo-work' })]);
+  tr.drop('octo-work', 'expired');
+  assert.deepStrictEqual(left, [[pr(2).url, 'octo-dev']]);
+});

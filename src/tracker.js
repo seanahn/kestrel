@@ -14,6 +14,7 @@ function createTracker({ now }) {
   const listeners = [];
   const hidden = new Map();     // url -> { missingSince, account }: what the user hid (design 101, "Hiding a PR")
   const hiddenListeners = [];
+  const leftListeners = [];
   const hiddenEntries = () => [...hidden].map(([url, h]) => ({ url, missingSince: h.missingSince, account: h.account }));
   const emitHidden = () => hiddenListeners.forEach((fn) => fn([...hidden.keys()], hiddenEntries()));
   const emit = (changed) => { if (changed) listeners.forEach((fn) => fn()); };
@@ -22,6 +23,7 @@ function createTracker({ now }) {
     && a.changedAt === b.changedAt && a.highlight === b.highlight && a.error === b.error;
 
   function apply(account, prs) {
+    const left = [];   // rows this complete result no longer has: merged or closed (design 101, "Merged elsewhere")
     const first = !applied.has(account);
     applied.add(account);
     let changed = false;
@@ -45,7 +47,7 @@ function createTracker({ now }) {
     }
     let pruned = false;
     for (const [url, r] of rows) {
-      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; }
+      if (r.pr.account === account && !seen.has(url)) { rows.delete(url); changed = true; left.push(r); }
     }
     // A hidden PR a successful list doesn't return keeps its hide; only 24 hours of absence drops it.
     for (const [url, h] of hidden) {
@@ -59,6 +61,7 @@ function createTracker({ now }) {
     }
     emit(changed);
     if (pruned) emitHidden();
+    if (left.length) leftListeners.forEach((fn) => fn(left));
   }
 
   function setNote(account, note) {
@@ -154,6 +157,7 @@ function createTracker({ now }) {
     hiddenMissing: () => [...hidden].filter(([, h]) => h.missingSince !== null || h.account === null).sort((a, b) => (a[1].missingSince === null ? -Infinity : a[1].missingSince) - (b[1].missingSince === null ? -Infinity : b[1].missingSince)).map(([url, h]) => ({ url, account: h.account })),
     onChange: (fn) => { listeners.push(fn); },
     onHiddenChange: (fn) => { hiddenListeners.push(fn); },
+    onLeft: (fn) => { leftListeners.push(fn); },
   };
 }
 
