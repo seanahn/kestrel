@@ -49,8 +49,8 @@ test('busy while updating, with its own kind', async () => {
   assert.strictEqual(await merger.update(URL), 'busy');
   assert.strictEqual(await merger.merge(URL), 'busy');
   release(); assert.strictEqual(await p, 'updated');
-  assert.strictEqual(merger.busy(URL), false);
-  assert.strictEqual(merger.busyKind(URL), null);
+  assert.strictEqual(merger.busy(URL), true, 'accepted, but no poll has shown the new head yet');
+  assert.strictEqual(merger.busyKind(URL), 'update');
   assert.strictEqual(calls.busy, 2);
   assert.strictEqual(calls.update.length, 1);
 });
@@ -85,4 +85,38 @@ test('update only from a behind-base row, and never without a head commit', asyn
   assert.strictEqual(b.calls.update.length, 0);
   const c = setup();
   assert.strictEqual(await c.merger.update('https://github.com/acme/widgets/pull/999'), 'gone');
+});
+
+test('after a successful update the row stays busy until a poll shows the new head, at most 2 minutes', async () => {
+  const { vscode } = install();
+  let t = 1000;
+  const tracker = createTracker({ now: () => t });
+  tracker.apply('octo-work', [pr()]);
+  let changes = 0; const timers = [];
+  const merger = createMerger({
+    vscode, client: { updateBranch: async () => {} }, tracker, pollNow: () => {}, preferred: () => 'squash',
+    tokenFor: async () => 'tok', onBusyChange: () => { changes++; }, now: () => t,
+    setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
+  });
+  assert.strictEqual(await merger.update(URL), 'updated');
+  assert.strictEqual(merger.busy(URL), true, 'still updating until GitHub shows the new commit');
+  assert.strictEqual(merger.busyKind(URL), 'update');
+  assert.strictEqual(await merger.update(URL), 'busy', 'no second update meanwhile');
+  tracker.apply('octo-work', [pr()]);
+  assert.strictEqual(merger.busy(URL), true, 'a poll with the same head: still updating');
+  tracker.apply('octo-work', [pr({ headOid: 'merged-base-in', mergeState: 'BLOCKED' })]);
+  assert.strictEqual(merger.busy(URL), false, 'the new head arrived');
+  assert.strictEqual(merger.busyKind(URL), null);
+
+  // the cap: GitHub never shows a new head
+  tracker.apply('octo-work', [pr({ headOid: 'h2', mergeState: 'BEHIND' })]);
+  assert.strictEqual(await merger.update(URL), 'updated');
+  assert.strictEqual(merger.busy(URL), true);
+  const cap = timers[timers.length - 1];
+  assert.strictEqual(cap.ms, 120000);
+  t += 120000;
+  const before = changes;
+  cap.fn();
+  assert.strictEqual(merger.busy(URL), false);
+  assert.strictEqual(changes, before + 1, 'the panel redraws when the cap ends it');
 });

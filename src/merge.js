@@ -10,9 +10,17 @@ function pickMethod(allowed, preferred) {
   return first ? first.toUpperCase() : null;
 }
 
-function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, onBusyChange = () => {}, onMerged = () => {}, onUpdated = () => {} }) {
+const UPDATE_SETTLE_MS = 120000;
+
+function createMerger({
+  vscode, client, tokenFor, tracker, pollNow, preferred, onBusyChange = () => {}, onMerged = () => {}, onUpdated = () => {},
+  now = Date.now, setTimer = (fn, ms) => { const t = setTimeout(fn, ms); if (t.unref) t.unref(); return t; },
+}) {
   const inFlight = new Map(); // url -> 'merge' | 'update'
   const refusedAt = new Map(); // url -> the head commit GitHub refused to update
+  // url -> { head, until }: GitHub accepted an update, but no poll has shown its new head commit yet. The row stays on
+  // "updating…" meanwhile, at most UPDATE_SETTLE_MS, so it doesn't flash back to "update branch" (Sean, 2026-11-20).
+  const settling = new Map();
   const rowOf = (url) => tracker.rows().find((r) => r.pr.url === url);
 
   async function merge(url) {
@@ -54,9 +62,18 @@ function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, o
     }
   }
 
+  function isSettling(url) {
+    const p = settling.get(url);
+    if (!p) return false;
+    const row = rowOf(url);
+    if (row && row.pr.headOid === p.head && now() < p.until) return true;
+    settling.delete(url);
+    return false;
+  }
+
   /** Merge the base into a behind-base PR's branch. No confirm: it changes the branch, it merges nothing. */
   async function update(url) {
-    if (inFlight.has(url)) return 'busy';
+    if (inFlight.has(url) || isSettling(url)) return 'busy';
     const row = rowOf(url);
     if (!row) return 'gone';
     if (row.state.rule !== 7) return 'changed';
@@ -68,6 +85,8 @@ function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, o
       const token = await tokenFor(pr.account);
       await client.updateBranch(token, { id: pr.id, expectedHeadOid: pr.headOid });
       refusedAt.delete(url);
+      settling.set(url, { head: pr.headOid, until: now() + UPDATE_SETTLE_MS });
+      setTimer(() => { if (settling.delete(url)) onBusyChange(); }, UPDATE_SETTLE_MS);
       onUpdated(url);
       pollNow();
       return 'updated';
@@ -92,7 +111,11 @@ function createMerger({ vscode, client, tokenFor, tracker, pollNow, preferred, o
     return false;
   }
 
-  return { merge, update, updateFailed, busy: (url) => inFlight.has(url), busyKind: (url) => inFlight.get(url) || null };
+  return {
+    merge, update, updateFailed,
+    busy: (url) => inFlight.has(url) || isSettling(url),
+    busyKind: (url) => inFlight.get(url) || (isSettling(url) ? 'update' : null),
+  };
 }
 
-module.exports = { createMerger, pickMethod, METHOD_LABEL };
+module.exports = { createMerger, pickMethod, METHOD_LABEL, UPDATE_SETTLE_MS };

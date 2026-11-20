@@ -477,7 +477,9 @@ in place, instead of handing the agent a prompt:
    makes GitHub refuse if a push landed after the row was drawn.
 3. While it runs, the link reads "updating…". Further clicks, and merge,
    wait for it.
-4. On success, kestrel polls at once and switches to the 10 s interval.
+4. On success, kestrel polls at once and switches to the 10 s interval. The link keeps reading "updating…" until a
+   poll shows the PR's new head commit, at most 2 minutes, so it doesn't flash back to "update branch" meanwhile
+   (Sean, 2026-11-20).
    The update is a new push, so CI and the reviewer run again, and the row
    moves through "checks n/m".
 5. On a refusal, such as a conflict, GitHub's message shows in red. The
