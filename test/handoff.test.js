@@ -102,3 +102,10 @@ test('without those perch commands, or when perch fails: no session, nothing ope
   assert.strictEqual(await g.findSession('https://github.com/acme/widgets/pull/7'), null);
   assert.strictEqual(await g.openSession({ url: 'https://github.com/acme/widgets/pull/7' }), 'none');
 });
+
+test('canOpenSessions says whether perch can open a PR\'s chat', async () => {
+  const a = install(); a.ui.extraCommands = ['perch.openPrSession'];
+  assert.strictEqual(await createHandoff(a.vscode).canOpenSessions(), true);
+  const b = install(); b.ui.extraCommands = ['perch.insertText'];
+  assert.strictEqual(await createHandoff(b.vscode).canOpenSessions(), false);
+});

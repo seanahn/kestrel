@@ -29,7 +29,7 @@ test('state table', () => {
     [3, pr({ checks: [{ name: 'test', state: 'failure' }, { name: 'lint', state: 'failure' }, { name: 'a', state: 'success' }] }), 'CI failed: test and 1 more', 'red', prompt(`check the failing \`test\` check on PR ${ref} (${url})`)],
     [4, pr({ reviews: [summary(1, 0)] }), 'needs human review', 'dim', { kind: 'open' }],
     [4, pr({ reviews: [summary(2, 0)], mergeState: 'BLOCKED' }), 'needs human review', 'dim', { kind: 'open' }],
-    [5, pr({ reviewDecision: 'CHANGES_REQUESTED' }), 'changes requested', 'red', prompt(`check the requested changes on PR ${ref} (${url})`)],
+    [5, pr({ reviewDecision: 'CHANGES_REQUESTED' }), 'changes requested', 'red', prompt(`check only the blocking review comments ([severe] or critical) on PR ${ref} (${url}) and fix those; leave the minor ones`)],
     [6, pr({ checks: [{ name: 'a', state: 'success' }, { name: 'b', state: 'pending' }, { name: 'c', state: 'pending' }] }), 'checks 1/3', 'running', null],
     [6, pr({ mergeable: 'UNKNOWN', checks: [] }), 'waiting for GitHub', 'running', null],
     [6, pr({ mergeState: 'UNKNOWN' }), 'checks 1/1', 'running', null],

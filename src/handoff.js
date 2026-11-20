@@ -47,7 +47,10 @@ function createHandoff(vscode) {
     try { return (await vscode.commands.executeCommand('perch.openPrSession', spec)) || 'none'; } catch { return 'none'; }
   }
 
-  return { send, noteMerged, findSession, openSession };
+  /** Whether perch can open a PR's chat (and fill its box), so a reason link can go there. */
+  const canOpenSessions = () => has('perch.openPrSession');
+
+  return { send, noteMerged, findSession, openSession, canOpenSessions };
 }
 
 module.exports = { createHandoff };

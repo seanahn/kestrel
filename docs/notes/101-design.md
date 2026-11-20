@@ -110,7 +110,7 @@ the PR's latest commit.
 | 1 | Draft | "draft" (dim) | puts "PR {ref} is a draft; check whether it is ready to mark ready for review" in the agent box |
 | 2 | Merge conflict (`mergeable: CONFLICTING`) | "conflicts" | prompt: "resolve the merge conflicts on PR {ref} ({url})" |
 | 3 | Any check on head finished as failure, timed-out, cancelled, or action-required | "CI failed: {first failed check name}" (+ "and N more") | prompt: "check the failing `{name}` check on PR {ref} ({url})" |
-| 5 | A reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`), unless every review requesting changes is on an older commit while checks still run on the head: then rule 6 *(Sean, 2026-11-19: a re-review is under way and will replace it)* | "changes requested" | prompt: "check the requested changes on PR {ref} ({url})" |
+| 5 | A reviewer requested changes (`reviewDecision: CHANGES_REQUESTED`), unless every review requesting changes is on an older commit while checks still run on the head: then rule 6 *(Sean, 2026-11-19: a re-review is under way and will replace it)* | "changes requested" | prompt: "check only the blocking review comments ([severe] or critical) on PR {ref} ({url}) and fix those; leave the minor ones" (Sean, 2026-11-20) |
 | 6 | Checks still pending or queued on head, or GitHub hasn't computed mergeability yet (`UNKNOWN`) | "checks {done}/{total}" spinner | nothing |
 | 7 | Behind base and that blocks it: `mergeStateStatus: BEHIND`, or `BLOCKED` while GitHub says the branch can be updated (`viewerCanUpdateBranch`) | "update branch" | updates the branch in place (see "Updating a branch"); after GitHub refuses, "update branch: ask agent", prompt: "update PR {ref} with its base branch ({url})" |
 | 4 | The review bot's summary on head lists approval blockers: reasons it may not approve, such as a control path, not code to fix | "needs human review" (dim; not in the badge) | opens the PR on GitHub; the tooltip lists the bot's reasons |
@@ -444,6 +444,23 @@ transcript path and when it was recorded. A local find says "Found on this machi
 
 **Ready rows are green:** a row in state 9 (**merge**) gets the theme's inserted-line background as a tint
 *(builder's call)*.
+
+## Reason links go to the PR's chat (added 2026-11-20, Sean's request)
+
+A reason link's prompt (changes requested, conflicts, CI failed, the findings and unresolved-comments links, the
+update fallback) goes to the chat that made the PR, not to whichever perch tab was last used:
+
+- kestrel calls `perch.openPrSession({ url, session, cwd, transcript, fill: prompt })`, using the PR's record first,
+  then this machine's search.
+- If the chat is open, perch switches to it; if it's closed, perch resumes it in a new tab. Either way the prompt
+  goes at the end of its box, unsent.
+- **The chat isn't on this machine:** the prompt goes to the last tab as before, with a note in front:
+  - "This PR was made on {host} (Claude session {8 chars}); its chat isn't on this machine." when the PR's record
+    names the machine;
+  - "No Claude chat for this PR was found on this machine." otherwise.
+
+  That way whoever reads it knows to move to that machine.
+- **Without perch's session commands:** the prompt goes as before, with no note.
 
 ## Merged elsewhere (added 2026-11-20, Sean's request)
 

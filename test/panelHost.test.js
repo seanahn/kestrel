@@ -232,3 +232,63 @@ test('a row\'s detail lines go in its tooltip, before where it was made', () => 
   const { last } = setup([pr(1, { mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' })]);
   assert.deepStrictEqual(last().rows[0].origin.slice(0, 1), ['A review is required before merging.']);
 });
+
+
+function chatSetup(rows, { openAnswer = 'tab', perch = true } = {}) {
+  const { vscode, ui } = install();
+  delete require.cache[require.resolve('../src/panel')];
+  const { PanelProvider } = require('../src/panel');
+  const tracker = createTracker({ now: () => Date.parse('2026-03-01T00:00:00Z') });
+  tracker.apply('octo-dev', rows);
+  const sent = [], opened = [];
+  const handoff = {
+    send: async (p) => { sent.push(p); },
+    openSession: async (spec) => { opened.push(spec); return openAnswer; },
+    canOpenSessions: async () => perch,
+  };
+  const merger = { merge: async () => {}, update: async () => {}, busy: () => false, busyKind: () => null, updateFailed: () => false };
+  const origins = { want: () => Promise.resolve(), get: () => null };
+  const panel = new PanelProvider({ vscode, extensionUri: vscode.Uri.file('/ext'), tracker, handoff, merger, origins });
+  ui.providers['kestrel.prs'] = panel;
+  const view = ui.resolveView();
+  view.webview._receive({ type: 'ready' });
+  return { view, sent, opened };
+}
+const flush3 = async () => { for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r)); };
+const CR = (url) => `check only the blocking review comments ([severe] or critical) on PR acme/widgets#1 (${url}) and fix those; leave the minor ones`;
+
+test('a reason link puts its prompt in the PR\'s own chat', async () => {
+  const record = { host: 'desktop', session: 'sess-rec-1', cwd: '/w', transcript: '/t/rec.jsonl', at: null };
+  const { view, sent, opened } = chatSetup([pr(1, { reviewDecision: 'CHANGES_REQUESTED', origin: record })]);
+  view.webview._receive({ type: 'action', url: U(1) });
+  await flush3();
+  assert.deepStrictEqual(opened, [{ url: U(1), session: 'sess-rec-1', cwd: '/w', transcript: '/t/rec.jsonl', fill: CR(U(1)) }]);
+  assert.deepStrictEqual(sent, [], 'not the last tab');
+});
+
+test('no chat here: the last tab, with a note saying where the chat is', async () => {
+  const record = { host: 'desktop', session: 'sess-rec-1abcdef', cwd: '/w', transcript: '/t/rec.jsonl', at: null };
+  const a = chatSetup([pr(1, { reviewDecision: 'CHANGES_REQUESTED', origin: record })], { openAnswer: 'none' });
+  a.view.webview._receive({ type: 'action', url: U(1) });
+  await flush3();
+  assert.deepStrictEqual(a.sent, [`This PR was made on desktop (Claude session sess-rec); its chat isn't on this machine. ${CR(U(1))}`]);
+  const b = chatSetup([pr(1, { reviewDecision: 'CHANGES_REQUESTED' })], { openAnswer: 'none' });
+  b.view.webview._receive({ type: 'action', url: U(1) });
+  await flush3();
+  assert.deepStrictEqual(b.sent, [`No Claude chat for this PR was found on this machine. ${CR(U(1))}`]);
+});
+
+test('without perch\'s session commands, the prompt goes as before, with no note', async () => {
+  const { view, sent, opened } = chatSetup([pr(1, { reviewDecision: 'CHANGES_REQUESTED' })], { perch: false });
+  view.webview._receive({ type: 'action', url: U(1) });
+  await flush3();
+  assert.deepStrictEqual(opened, []);
+  assert.deepStrictEqual(sent, [CR(U(1))]);
+});
+
+test('the extra link goes to the PR\'s chat too', async () => {
+  const { view, opened } = chatSetup([pr(1, { unresolvedThreads: 2 })]);
+  view.webview._receive({ type: 'extra', url: U(1) });
+  await flush3();
+  assert.strictEqual(opened[0].fill, 'check the unresolved review comments on PR acme/widgets#1 (https://github.com/acme/widgets/pull/1)');
+});

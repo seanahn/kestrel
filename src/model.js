@@ -46,7 +46,7 @@ function rowState(pr) {
   const requests = (pr.reviews || []).filter((r) => r.state === 'CHANGES_REQUESTED');
   const staleRequest = running && requests.length > 0 && !requests.some((r) => r.commitOid === pr.headOid);
   if (pr.reviewDecision === 'CHANGES_REQUESTED' && !staleRequest) {
-    return out(5, '5', 'changes requested', 'red', ask(`check the requested changes on PR ${ref} (${pr.url})`));
+    return out(5, '5', 'changes requested', 'red', ask(`check only the blocking review comments ([severe] or critical) on PR ${ref} (${pr.url}) and fix those; leave the minor ones`));
   }
   // Behind, and that's what blocks it or may: update first (Sean, 2026-11-20), even before a missing review, and
   // before checks still running, since the update restarts them.

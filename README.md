@@ -5,7 +5,7 @@ Terminal. Each row says whether to merge, wait or act, and keeps itself
 current while CI and reviewers run.
 
 kestrel has no AI in it. When a row needs action, clicking its reason puts
-a prompt such as "check the requested changes on PR acme/widgets#42" in an
+a prompt such as "check only the blocking review comments on PR acme/widgets#42" in an
 agent's message box. It never sends it: you press Enter.
 
 - **The PRs tab:** every open PR you authored, across every repo and every
@@ -38,7 +38,7 @@ The first line that matches decides the row.
 | draft | The PR is a draft | prompt: check whether it is ready for review |
 | conflicts | It has merge conflicts | prompt: resolve them |
 | CI failed: name | A check on the latest commit failed, timed out, was cancelled or needs action | prompt: check that check |
-| changes requested | A reviewer requested changes. If that review is on an older commit and checks are still running on the new one, the row shows the checks instead, until the new review lands | prompt: check the requested changes |
+| changes requested | A reviewer requested changes. If that review is on an older commit and checks are still running on the new one, the row shows the checks instead, until the new review lands | prompt: check only the blocking comments and fix those |
 | checks done/total | Checks are still running, or GitHub is still working out mergeability | nothing |
 | update branch | The branch is behind its base, and that blocks the merge (or may). Shown even while checks run, since updating restarts them | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
 | needs human review | The review bot reviewed it but may not approve it (its reasons are in the tooltip), or a person's review is required | opens the PR on GitHub |
@@ -140,6 +140,11 @@ reasons in its tooltip. `findings` are counted ("N findings" next to
   closes the gap: GitHub reports the PR blocked until then.
 
 ## Agents
+
+A reason link's prompt goes to the Claude chat that made the PR (see "Where
+a PR was made"): perch switches to it, or resumes it, and puts the prompt at
+the end of its box. When that chat isn't on this machine, the prompt goes to
+the tab you were last in, with a note in front saying where the chat is.
 
 - **`perch.insertText`:** if the [perch](https://github.com/seanahn/perch)
   extension provides this command, a clicked reason puts its prompt at the
