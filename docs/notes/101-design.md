@@ -117,8 +117,9 @@ the PR's latest commit.
 | 8 | Blocked for another reason (`BLOCKED`) | "needs human review" when a review is required (`REVIEW_REQUIRED`), else "blocked" | opens the PR on GitHub |
 | 9 | Mergeable (`CLEAN`, or `UNSTABLE`/`HAS_HOOKS` with no failures by rule 3) | **merge**, plus "{n} findings" when the review bot found non-blocking findings | merge (see "Merging"); the findings text is a second link with prompt "check the findings on PR {ref} ({url})" |
 
-Rules are checked in table order. Rule 7 comes before rule 4 so a PR that is both behind and waiting for a
-review shows "update branch" first (Sean, 2026-11-20). Rule 4 used to read "{n} blocker(s)" with an agent
+Rules are checked in this order: 1, 2, 3, 5, 7, 6, 4, 8, 9. Rule 7 comes before rule 4, so a PR that is both
+behind and waiting for a review shows "update branch" first, and before rule 6, so it shows even while checks
+run, since the update restarts them; the tooltip then says "Checks still running: n/m" (Sean, 2026-11-20). Rule 4 used to read "{n} blocker(s)" with an agent
 prompt; in practice the bot's blockers are reasons it may not approve, which no code change clears, so it now
 says "needs human review", links to GitHub, and doesn't count in the badge (Sean, 2026-11-20).
 

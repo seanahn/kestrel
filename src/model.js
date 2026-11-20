@@ -48,13 +48,16 @@ function rowState(pr) {
   if (pr.reviewDecision === 'CHANGES_REQUESTED' && !staleRequest) {
     return out(5, '5', 'changes requested', 'red', ask(`check the requested changes on PR ${ref} (${pr.url})`));
   }
+  // Behind, and that's what blocks it or may: update first (Sean, 2026-11-20), even before a missing review, and
+  // before checks still running, since the update restarts them.
+  if (pr.mergeState === 'BEHIND' || (pr.mergeState === 'BLOCKED' && pr.canUpdateBranch === true)) {
+    const done = checks.filter((c) => c.state !== 'pending').length;
+    return out(7, '7', 'update branch', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${pr.url})` }, true,
+      running ? [`Checks still running: ${done}/${checks.length}. Updating restarts them.`] : []);
+  }
   if (running || pr.mergeable === 'UNKNOWN' || pr.mergeState === 'UNKNOWN') {
     const done = checks.filter((c) => c.state !== 'pending').length;
     return out(6, '6', checks.length ? `checks ${done}/${checks.length}` : 'waiting for GitHub', 'running', null, false);
-  }
-  // Behind, and that's what blocks it or may: update first (Sean, 2026-11-20), even before a missing review.
-  if (pr.mergeState === 'BEHIND' || (pr.mergeState === 'BLOCKED' && pr.canUpdateBranch === true)) {
-    return out(7, '7', 'update branch', 'red', { kind: 'update', prompt: `update PR ${ref} with its base branch (${pr.url})` });
   }
   // The review bot's blockers are reasons it may not approve (a control path, a dependency change), not code to
   // fix: the PR waits for a person's review.

@@ -163,3 +163,17 @@ test('needs human review waits on someone else: not in the badge, reasons in the
   assert.deepStrictEqual(rowState(pr({ mergeState: 'BLOCKED', reviewDecision: 'REVIEW_REQUIRED' })).detail, ['A review is required before merging.']);
   assert.deepStrictEqual(rowState(pr()).detail, []);
 });
+
+test('behind base comes before checks running: the update restarts them anyway', () => {
+  const running = [{ name: 'review', state: 'pending' }, { name: 'test', state: 'success' }];
+  const s = rowState(pr({ mergeState: 'BEHIND', checks: running }));
+  assert.strictEqual(s.rule, 7);
+  assert.strictEqual(s.text, 'update branch');
+  assert.deepStrictEqual(s.detail, ['Checks still running: 1/2. Updating restarts them.']);
+  assert.strictEqual(rowState(pr({ mergeState: 'BLOCKED', canUpdateBranch: true, checks: running })).rule, 7);
+  // not behind: still running
+  assert.strictEqual(rowState(pr({ mergeState: 'BLOCKED', checks: running })).rule, 6);
+  // a failed check still comes first
+  assert.strictEqual(rowState(pr({ mergeState: 'BEHIND', checks: [{ name: 't', state: 'failure' }] })).rule, 3);
+  assert.deepStrictEqual(rowState(pr({ mergeState: 'BEHIND' })).detail, []);
+});

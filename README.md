@@ -40,7 +40,7 @@ The first line that matches decides the row.
 | CI failed: name | A check on the latest commit failed, timed out, was cancelled or needs action | prompt: check that check |
 | changes requested | A reviewer requested changes. If that review is on an older commit and checks are still running on the new one, the row shows the checks instead, until the new review lands | prompt: check the requested changes |
 | checks done/total | Checks are still running, or GitHub is still working out mergeability | nothing |
-| update branch | The branch is behind its base, and that blocks the merge (or may) | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
+| update branch | The branch is behind its base, and that blocks the merge (or may). Shown even while checks run, since updating restarts them | updates the branch in place: merges the base in, like GitHub's **Update branch** button |
 | needs human review | The review bot reviewed it but may not approve it (its reasons are in the tooltip), or a person's review is required | opens the PR on GitHub |
 | blocked | Blocked for another reason | opens the PR |
 | **merge** | GitHub would accept the merge | merges, after a confirm |
