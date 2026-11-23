@@ -158,15 +158,17 @@ on that poll.
 Sean has old PRs he doesn't care about right now. He chose hiding per
 PR:
 
-- Each row has an **×** (shown on hover and on the selected row; key `h`)
-  that hides that PR.
+- Each row starts with an **eye** ("Hide this PR"; shown on hover, on the
+  selected row and when Tab reaches it; key `h`) that hides that PR. It was
+  an **×** at the end of the row until 0.1.11.
 - A hidden PR isn't drawn, doesn't count in the badge, and never
   highlights.
 - The hidden list survives reloads. It is kept in the extension's global
   state as a list of PR URLs.
 - When anything is hidden, a line at the bottom reads "Show N hidden".
-  Clicking it shows the hidden rows dimmed, each with an **unhide** link in
-  place of the ×, and the line becomes "Hide N hidden".
+  Clicking it shows the hidden rows dimmed, each starting with an **eye
+  with a slash** ("Show this PR again") in place of the eye, and the line
+  becomes "Hide N hidden".
 - A URL leaves the hidden list once the PR is gone: merged from the
   panel, or confirmed merged or closed. A PR whose account is dropped
   (login expired) stays hidden. *(builder's call)*

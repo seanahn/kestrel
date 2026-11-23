@@ -16,6 +16,20 @@
     b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
     return b;
   };
+  // The hide control: an eye (hide this PR), or on a hidden row an eye with a slash (show it again). Inline SVG in the
+  // theme's text colour; the page loads no icon font.
+  const SVG = 'http://www.w3.org/2000/svg';
+  const svgEl = (tag, attrs) => { const e = d.createElementNS(SVG, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  function eye(hidden, onClick) {
+    const label = hidden ? 'Show this PR again' : 'Hide this PR';
+    const b = link('eye ' + (hidden ? 'unhide' : 'hide'), undefined, onClick);
+    b.setAttribute('title', label); b.setAttribute('aria-label', label);
+    const svg = svgEl('svg', { viewBox: '0 0 16 16', width: '14', height: '14', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.3', 'stroke-linecap': 'round', 'aria-hidden': 'true', focusable: 'false' });
+    svg.append(svgEl('path', { d: 'M1.5 8C3 5 5.3 3.5 8 3.5S13 5 14.5 8C13 11 10.7 12.5 8 12.5S3 11 1.5 8Z' }), svgEl('circle', { cx: '8', cy: '8', r: '2.2' }));
+    if (hidden) svg.append(svgEl('line', { x1: '2.5', y1: '13.5', x2: '13.5', y2: '2.5' }));
+    b.append(svg);
+    return b;
+  }
   const root = el('div', 'root'); root.setAttribute('role', 'listbox');
   d.body.append(root);
 
@@ -41,14 +55,13 @@
       line.setAttribute('role', 'option'); line.dataset.url = r.url;
       line.setAttribute('title', [r.title, ...(r.origin || [])].join('\n'));   // the title in full, and where the PR was made
       const main = el('div', 'line');
+      main.append(eye(r.hidden, () => post(r.hidden ? 'unhide' : 'hide', r.url)));
       main.append(el('span', 'dot ' + r.dot), el('span', 'ref', r.ref), el('span', 'title', r.title));
       if (state.multiAccount) main.append(el('span', 'account', r.account));
       const label = r.busy ? r.busyText || 'merging…' : r.text;
       main.append(r.actionKind && !r.busy ? link('action', label, () => post('action', r.url)) : el('span', 'action', label));
       if (r.extraText) main.append(link('extra', r.extraText, () => post('extra', r.url)));
       main.append(link('open', '↗', () => post('open', r.url)));
-      main.append(r.hidden ? link('unhide', 'unhide', () => post('unhide', r.url)) : link('hide', '×', () => post('hide', r.url)));
-      if (!r.hidden) main.lastChild.setAttribute('title', 'Hide this PR');
       line.append(main);
       if (r.error) line.append(el('div', 'error', r.error));
       line.addEventListener('mouseenter', () => { if (!state.visible && r.highlight) post('seen', r.url); });
@@ -88,7 +101,7 @@
       const n = root.querySelector('.row.selected'); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'nearest' });
       e.preventDefault();
     } else if (i >= 0 && e.key === 'Enter') {
-      // A focused link button (↗, the extra link, ×) handles its own Enter as a click.
+      // A focused link button (the eye, ↗, the extra link) handles its own Enter as a click.
       if (e.target && e.target.closest && e.target.closest('button')) return;
       const r = list[i];
       if (r.actionKind && !r.busy) post('action', r.url);

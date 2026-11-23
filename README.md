@@ -22,10 +22,10 @@ agent's message box. It never sends it: you press Enter.
 - **Keyboard:** ↑/↓ move between rows, Enter runs the row's action, `o`
   opens the PR in the browser, `h` hides it.
 - **Merge** from the panel, after a confirm.
-- **Hiding:** the **×** on a row hides that PR (it isn't drawn, counted or
-  highlighted). "Show N hidden" at the bottom brings hidden rows back,
-  dimmed, each with an **unhide** link. A PR leaves the hidden list once
-  it is merged or closed.
+- **Hiding:** the **eye** at the start of a row hides that PR (it isn't
+  drawn, counted or highlighted). "Show N hidden" at the bottom brings
+  hidden rows back, dimmed, each starting with an **eye with a slash** that
+  shows it again. A PR leaves the hidden list once it is merged or closed.
 
 kestrel is not made by or affiliated with GitHub.
 

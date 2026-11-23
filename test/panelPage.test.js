@@ -167,14 +167,26 @@ test('CSS uses theme variables only', () => {
   assert.ok(/\.row\.fresh/.test(CSS));
 });
 
-test('x posts hide', () => {
+test('an open eye at the start of the row hides the PR', () => {
   const p = page();
   p.send(render({ rows: [row()] }));
-  const x = p.d.querySelector('.hide');
-  assert.strictEqual(x.getAttribute('title'), 'Hide this PR');
-  x.click();
+  const eye = p.d.querySelector('.line').firstElementChild;
+  assert.ok(eye.classList.contains('hide'), 'the eye comes first, before the dot');
+  assert.strictEqual(eye.tagName, 'BUTTON');
+  assert.strictEqual(eye.getAttribute('title'), 'Hide this PR');
+  assert.strictEqual(eye.getAttribute('aria-label'), 'Hide this PR');
+  assert.strictEqual(eye.textContent, '', 'an icon, not the old ×');
+  const svg = eye.querySelector('svg');
+  assert.ok(svg, 'an inline svg');
+  assert.strictEqual(svg.getAttribute('aria-hidden'), 'true');
+  assert.strictEqual(svg.querySelector('line'), null, 'no slash on the open eye');
+  assert.ok([...svg.querySelectorAll('*')].every((n) => !n.getAttribute('stroke') || n.getAttribute('stroke') === 'currentColor'));
+  assert.strictEqual(svg.getAttribute('stroke'), 'currentColor', 'follows the theme colour');
+  eye.click();
   assert.deepStrictEqual(p.posted.slice(1), [{ type: 'hide', url: U(1) }]);
   assert.ok(/\.row:hover[^{]*\.hide|\.row\.selected[^{]*\.hide/.test(CSS));
+  assert.ok(!/\.hide\s*\{[^}]*visibility:\s*hidden/.test(CSS), 'not visibility:hidden, so Tab can reach it');
+  assert.strictEqual(p.d.querySelector('.line').textContent.includes('×'), false);
 });
 
 test('hidden rows not drawn by default', () => {
@@ -193,7 +205,12 @@ test('Show N hidden toggles and shows unhide', () => {
   const h = rows.find((r) => r.dataset.url === U(1));
   assert.ok(h.classList.contains('hidden'));
   assert.strictEqual(h.querySelector('.hide'), null);
-  assert.strictEqual(h.querySelector('.unhide').textContent, 'unhide');
+  const eye = h.querySelector('.line').firstElementChild;
+  assert.ok(eye.classList.contains('unhide'), 'the slashed eye comes first');
+  assert.strictEqual(eye.getAttribute('title'), 'Show this PR again');
+  assert.strictEqual(eye.getAttribute('aria-label'), 'Show this PR again');
+  assert.ok(eye.querySelector('svg line'), 'an eye with a slash');
+  assert.strictEqual(eye.textContent, '');
   assert.strictEqual(p.d.querySelector('.toggle-hidden').textContent, 'Hide 1 hidden');
   h.querySelector('.unhide').click();
   assert.deepStrictEqual(p.posted.slice(1), [{ type: 'unhide', url: U(1) }]);
