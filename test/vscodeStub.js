@@ -78,7 +78,14 @@ function install() {
   /** Shows a view: resolves the registered view provider (default kestrel.prs) with a fake view. */
   ui.resolveView = (id = 'kestrel.prs') => {
     const visibility = new Emitter();
-    const view = { webview: fakeWebview(), badge: undefined, visible: true, show() {}, onDidChangeVisibility: visibility.event, onDidDispose: () => ({ dispose() {} }),
+    let badge;
+    const view = { webview: fakeWebview(), visible: true, show() {}, onDidChangeVisibility: visibility.event, onDidDispose: () => ({ dispose() {} }),
+      get badge() { return badge; },
+      // Like VS Code's WebviewViewPane.updateBadge (checked in 1.129.1): a badge object replaces the tab's number,
+      // undefined changes nothing on screen, and the tab shows a number only above 0.
+      set badge(b) { badge = b; if (b) this.shownBadge = b.value > 0 ? b.value : 0; },
+      /** Tests: the number on the PRs tab, 0 for none. */
+      shownBadge: 0,
       /** Tests: hide or show the view and fire onDidChangeVisibility. */
       _setVisible(v) { this.visible = v; visibility.fire(); } };
     ui.providers[id].resolveWebviewView(view, {}, {});

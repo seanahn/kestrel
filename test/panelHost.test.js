@@ -73,7 +73,19 @@ test('badge value and tooltip, cleared at zero', () => {
   tracker.apply('octo-dev', [pr(1, { mergeable: 'CONFLICTING' })]);
   assert.deepStrictEqual(view.badge, { value: 1, tooltip: '1 PR needs you' });
   tracker.apply('octo-dev', [pr(3, { isDraft: true })]);
-  assert.strictEqual(view.badge, undefined);
+  assert.deepStrictEqual(view.badge, { value: 0, tooltip: '' });
+  assert.strictEqual(view.shownBadge, 0);
+});
+
+// The 0.1.10 report: the tab said 1 while the list was empty and offered "Show 2 hidden". VS Code's webview view
+// ignores badge = undefined, so the last number stayed on the tab once nothing was left to count.
+test('hiding the last PR that needs you clears the number on the tab', () => {
+  const { view, tracker, last } = setup([pr(1), pr(2, { mergeable: 'CONFLICTING' })]);
+  tracker.hide(U(1));
+  assert.strictEqual(view.shownBadge, 1);
+  view.webview._receive({ type: 'hide', url: U(2) });
+  assert.deepStrictEqual(last().rows.map((r) => r.hidden), [true, true]);
+  assert.strictEqual(view.shownBadge, 0);
 });
 
 test('action on a prompt row hands off that row\'s prompt', () => {

@@ -101,8 +101,9 @@ class PanelProvider {
     if (this.origins) this.origins.want(rows.filter((r) => !r.pr.origin).map((r) => r.pr.url));
     const accounts = new Set(rows.map((r) => r.pr.account));
     const n = this.tracker.badge();
-    // undefined, not 0: a hidden badge is cleared by unsetting it
-    view.badge = n > 0 ? { value: n, tooltip: n === 1 ? '1 PR needs you' : `${n} PRs need you` } : undefined;
+    // 0, not undefined: VS Code's webview view ignores an unset badge and keeps the last number on the tab
+    // (WebviewViewPane.updateBadge, 1.129); a 0 badge replaces it and the tab draws no number.
+    view.badge = n > 0 ? { value: n, tooltip: n === 1 ? '1 PR needs you' : `${n} PRs need you` } : { value: 0, tooltip: '' };
     view.webview.postMessage({
       type: 'render',
       visible: !!view.visible,
