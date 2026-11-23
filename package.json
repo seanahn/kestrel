@@ -2,7 +2,7 @@
   "name": "kestrel-prs",
   "displayName": "kestrel PRs",
   "description": "Your open GitHub pull requests in a bottom-panel tab: review state, checks, and one-click merge.",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "publisher": "seanahn",
   "license": "MIT",
   "repository": {

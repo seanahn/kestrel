@@ -80,6 +80,17 @@ commits, `1848b92` and `683e04b`, were fast-forwarded onto perch's
   list of its account for 24 hours (a migrated hide with no account yet is never aged by time until a list returns it). `kestrel.hidden` now stores
   `{ url, missingSince, account }`; the old array of urls still loads.
 
+## 0.1.11
+
+- The PRs tab number now clears when nothing needs you. VS Code's webview
+  view ignores `badge = undefined` (`WebviewViewPane.updateBadge` in
+  1.129.1 only replaces the number when a badge is set), so hiding the
+  last such PR left the old number beside an empty list. kestrel sets
+  `{ value: 0 }` instead, which the tab draws as no number. The test stub's
+  view draws badges the same way.
+- The hide control is an eye at the start of each row, and an eye with a
+  slash on hidden rows (in place of **×** and **unhide**). Tab reaches it.
+
 ## Known gaps
 
 Parked or deferred on purpose; none blocks 0.1.0.
@@ -99,8 +110,7 @@ Parked or deferred on purpose; none blocks 0.1.0.
   stall the below-200 guard.
 - `merge()` doesn't validate that `expectedHeadOid` and the method are set.
 - Hiding: hidden URLs of PRs closed while the extension was off are never
-  pruned; the "hidden" view stays on after the last unhide; **×** isn't
-  keyboard-focusable (the `h` key is).
+  pruned; the "hidden" view stays on after the last unhide.
 - A row that changed while the panel was hidden fades 4 s after the panel
   is shown, so a change made while it was closed is easy to miss; the
   badge still counts it.
